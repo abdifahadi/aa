@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "315443508332",
+    "project_id": "abdiwavee",
+    "storage_bucket": "abdiwavee.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:315443508332:android:5a8cf735c7dd34d6a69449",
+        "android_client_info": {
+          "package_name": "com.abdi_wave.abdi_wave"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "315443508332-segn41fche0vmb3jaj0849jgodhlktgh.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.abdi_wave.abdi_wave",
+            "certificate_hash": "586e3c33d04412ba5dca837451876e01e2bcebb6"
+          }
+        },
+        {
+          "client_id": "315443508332-6fgrne50kp8oqvluukt3dcj10k0dcqfr.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA6oFMKUm0QqlL6exZeBxc6YyikOPOTQpc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "315443508332-6fgrne50kp8oqvluukt3dcj10k0dcqfr.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,0 +1,56 @@
+name: abdi_wave
+description: "A new Flutter project."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.2
+  
+  # Firebase dependencies
+  firebase_core: ^2.15.1
+  firebase_auth: ^4.7.3
+  cloud_firestore: ^4.8.5
+  firebase_storage: ^11.2.6
+  firebase_messaging: ^14.6.7
+  firebase_app_check: ^0.1.5+2
+  cloud_functions: ^4.4.2
+  
+  # Google Sign-In
+  google_sign_in: ^6.2.1
+  
+  # Basic file handling
+  path_provider: ^2.1.1
+  path: ^1.8.3
+  uuid: ^4.0.0
+  http: ^1.1.0
+  
+  # UI and utilities
+  intl: ^0.18.1
+  provider: ^6.0.5
+  
+  # Video calling dependencies
+  agora_rtc_engine: ^6.2.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^2.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
+    - assets/sounds/
+  fonts:
+    - family: Roboto
+      fonts:
+        - asset: assets/fonts/Roboto-Regular.ttf
+        - asset: assets/fonts/Roboto-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/Roboto-Light.ttf
+          weight: 300 

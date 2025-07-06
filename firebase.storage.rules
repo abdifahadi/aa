@@ -1,0 +1,26 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Default deny
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+    
+    // Allow authenticated users to upload to their own folder and global chat
+    match /global_chat/{mediaType}/{fileName} {
+      allow read: if request.auth != null; // Anyone logged in can read global chat media
+      allow write: if request.auth != null && 
+                      fileName.matches('.*_' + request.auth.uid + '\\.[a-zA-Z0-9]+'); // Must contain their user ID
+    }
+    
+    // Allow access to private chat media only for participants
+    match /private_chat/{chatId}/{mediaType}/{fileName} {
+      allow read: if request.auth != null &&
+                    exists(/databases/$(database)/documents/chats/$(chatId)/participants/$(request.auth.uid));
+                    
+      allow write: if request.auth != null && 
+                      fileName.matches('.*_' + request.auth.uid + '\\.[a-zA-Z0-9]+') &&
+                      exists(/databases/$(database)/documents/chats/$(chatId)/participants/$(request.auth.uid));
+    }
+  }
+} 
