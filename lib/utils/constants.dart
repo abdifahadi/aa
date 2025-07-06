@@ -6,12 +6,12 @@ class AppConstants {
   static const String appBuildNumber = '1';
 
   // Firebase Configuration
-  static const String firebaseProjectId = 'abdi-wave-chat';
-  static const String firebaseApiKey = 'your-firebase-api-key';
-  static const String firebaseAuthDomain = 'abdi-wave-chat.firebaseapp.com';
-  static const String firebaseStorageBucket = 'abdi-wave-chat.appspot.com';
-  static const String firebaseMessagingSenderId = 'your-messaging-sender-id';
-  static const String firebaseAppId = 'your-firebase-app-id';
+  static const String firebaseProjectId = 'abdiwavee';
+  static const String firebaseApiKey = 'AIzaSyB5Ufc0N4WMuapF6z_tBesYDXQVZADs0RE';
+  static const String firebaseAuthDomain = 'abdiwavee.firebaseapp.com';
+  static const String firebaseStorageBucket = 'abdiwavee.firebasestorage.app';
+  static const String firebaseMessagingSenderId = '315443508332';
+  static const String firebaseAppId = '1:315443508332:web:a3a3b5e0cb1bf6aea69449';
 
   // Agora Configuration
   static const String agoraAppId = 'your-agora-app-id';
