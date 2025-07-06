@@ -14,6 +14,9 @@ import 'services/connectivity_service.dart';
 import 'services/call_service.dart';
 import 'services/local_database.dart';
 import 'services/offline_sync_service.dart';
+import 'services/performance_service.dart';
+import 'services/error_handler.dart';
+import 'utils/constants.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'screens/test/agora_call_verification.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -32,13 +35,22 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Initialize error handler first to catch all errors
+  ErrorHandler().initialize();
+  print("✅ Error handler initialized");
+
+  // Initialize performance service for monitoring
+  PerformanceService().initialize();
+  print("✅ Performance service initialized");
+
   // Initialize local database first - this should work offline
   try {
     final localDb = LocalDatabase();
     await localDb.database; // This initializes the database
-    print("Local database initialized successfully");
+    print("✅ Local database initialized successfully");
   } catch (e) {
-    print("Error initializing local database: $e");
+    ErrorHandler().handleDatabaseError(e, operation: 'database_initialization');
+    print("❌ Error initializing local database: $e");
     // Continue anyway - the app should still work with reduced functionality
   }
 
@@ -46,9 +58,10 @@ void main() async {
   try {
     final connectivityService = ConnectivityService();
     connectivityService.initialize();
-    print("Connectivity service initialized successfully");
+    print("✅ Connectivity service initialized successfully");
   } catch (e) {
-    print("Error initializing connectivity service: $e");
+    ErrorHandler().handleNetworkError(e, operation: 'connectivity_initialization');
+    print("❌ Error initializing connectivity service: $e");
     // Continue anyway
   }
 
@@ -65,13 +78,32 @@ void main() async {
       badge: true,
       sound: true,
     );
+    print("✅ Firebase initialized successfully");
   } catch (e) {
-    debugPrint('Failed to initialize Firebase: $e');
+    ErrorHandler().handleError(
+      AppError(
+        message: 'Failed to initialize Firebase: $e',
+        code: 'FIREBASE_INIT_ERROR',
+        severity: ErrorSeverity.high,
+      ),
+    );
+    debugPrint('❌ Failed to initialize Firebase: $e');
     // Continue anyway
   }
 
   // Request camera and microphone permissions for Agora
-  await [Permission.camera, Permission.microphone].request();
+  try {
+    final permissions = await [Permission.camera, Permission.microphone].request();
+    if (permissions[Permission.camera] != PermissionStatus.granted) {
+      ErrorHandler().handlePermissionError('camera');
+    }
+    if (permissions[Permission.microphone] != PermissionStatus.granted) {
+      ErrorHandler().handlePermissionError('microphone');
+    }
+    print("✅ Permissions requested");
+  } catch (e) {
+    ErrorHandler().handlePermissionError('camera_microphone');
+  }
 
   // Set preferred orientations
   await SystemChrome.setPreferredOrientations([
@@ -79,18 +111,35 @@ void main() async {
     DeviceOrientation.portraitDown,
   ]);
 
+  // Optimize system UI
+  SystemChrome.setSystemUIOverlayStyle(
+    const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarBrightness: Brightness.light,
+    ),
+  );
+
   // Initialize Agora engine once at app startup
-  final CallService callService = CallService();
-  await callService.initializeAgoraEngine();
+  try {
+    final CallService callService = CallService();
+    await callService.initializeAgoraEngine();
+    print("✅ Agora engine initialized");
+  } catch (e) {
+    ErrorHandler().handleCallError(e);
+    print("❌ Error initializing Agora: $e");
+  }
 
-  print('Starting app...');
-  print('Firebase initialized: ${Firebase.app().name}');
+  print('🚀 Starting app...');
+  print('📱 App Name: ${AppConstants.appName}');
+  print('🔢 Version: ${AppConstants.appVersion}');
 
-  // Run the app
+  // Run the app with error boundary
   runApp(
-    ChangeNotifierProvider(
-      create: (context) => ThemeProvider(),
-      child: const MyApp(),
+    ErrorBoundary(
+      child: ChangeNotifierProvider(
+        create: (context) => ThemeProvider(),
+        child: const MyApp(),
+      ),
     ),
   );
 }
@@ -375,5 +424,88 @@ class _DeveloperMenuLauncherState extends State<DeveloperMenuLauncher> {
         ),
       ),
     );
+  }
+}
+
+// Error boundary widget to catch and handle widget errors
+class ErrorBoundary extends StatefulWidget {
+  final Widget child;
+
+  const ErrorBoundary({Key? key, required this.child}) : super(key: key);
+
+  @override
+  State<ErrorBoundary> createState() => _ErrorBoundaryState();
+}
+
+class _ErrorBoundaryState extends State<ErrorBoundary> {
+  bool hasError = false;
+  String? errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    
+    // Listen to error stream
+    ErrorHandler().errorStream.listen((error) {
+      if (error.severity == ErrorSeverity.critical && mounted) {
+        setState(() {
+          hasError = true;
+          errorMessage = error.message;
+        });
+      }
+    });
+  }
+
+  void _retry() {
+    setState(() {
+      hasError = false;
+      errorMessage = null;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (hasError) {
+      return MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(
+                    Icons.error_outline,
+                    size: 64,
+                    color: Colors.red,
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Something went wrong',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    errorMessage ?? 'An unexpected error occurred',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 16),
+                  ),
+                  const SizedBox(height: 24),
+                  ElevatedButton(
+                    onPressed: _retry,
+                    child: const Text('Try Again'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return widget.child;
   }
 }
