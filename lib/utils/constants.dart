@@ -14,9 +14,9 @@ class AppConstants {
   static const String firebaseAppId = '1:315443508332:web:a3a3b5e0cb1bf6aea69449';
 
   // Agora Configuration
-  static const String agoraAppId = 'your-agora-app-id';
-  static const String agoraAppCertificate = 'your-agora-app-certificate';
-  static const String agoraTokenServerUrl = 'https://your-token-server.com/token';
+  static const String agoraAppId = 'b7487b8a48da4f89a4285c92e454a96f';
+  static const String agoraAppCertificate = '3305146df1a942e5ae0c164506e16007';
+  static const String agoraTokenServerUrl = 'https://jgfjkwtzkzctpwyqvtri.supabase.co/functions/v1/generateAgoraToken';
   
   // Cloudinary Configuration
   static const String cloudinaryCloudName = 'your-cloudinary-cloud-name';
