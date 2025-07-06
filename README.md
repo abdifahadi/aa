@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Abdi Wave Chat
 
 A comprehensive real-time chat application built with Flutter and Firebase.
@@ -120,3 +121,6 @@ If you see warnings about clientId on Android:
 ## License
 
 This project is for educational purposes only.
+=======
+# aa
+>>>>>>> 91070a7a59853e62a7336a8ec46b0ceb4da9bcd9
