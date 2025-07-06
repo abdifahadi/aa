@@ -37,6 +37,13 @@
             {
               "client_id": "315443508332-6fgrne50kp8oqvluukt3dcj10k0dcqfr.apps.googleusercontent.com",
               "client_type": 3
+            },
+            {
+              "client_id": "315443508332-bbcmbksmgt07194gtdujaufa8il1g6bc.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "abdiwave"
+              }
             }
           ]
         }
