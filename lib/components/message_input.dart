@@ -1,355 +1,356 @@
-"use strict";
-// Copyright 2019 Google LLC
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.OAuth2Client = exports.CertificateFormat = exports.CodeChallengeMethod = void 0;
-const gaxios_1 = require("gaxios");
-const querystring = require("querystring");
-const stream = require("stream");
-const formatEcdsa = require("ecdsa-sig-formatter");
-const crypto_1 = require("../crypto/crypto");
-const authclient_1 = require("./authclient");
-const loginticket_1 = require("./loginticket");
-var CodeChallengeMethod;
-(function (CodeChallengeMethod) {
-    CodeChallengeMethod["Plain"] = "plain";
-    CodeChallengeMethod["S256"] = "S256";
-})(CodeChallengeMethod = exports.CodeChallengeMethod || (exports.CodeChallengeMethod = {}));
-var CertificateFormat;
-(function (CertificateFormat) {
-    CertificateFormat["PEM"] = "PEM";
-    CertificateFormat["JWK"] = "JWK";
-})(CertificateFormat = exports.CertificateFormat || (exports.CertificateFormat = {}));
-class OAuth2Client extends authclient_1.AuthClient {
-    constructor(optionsOrClientId, clientSecret, redirectUri) {
-        super();
-        this.certificateCache = {};
-        this.certificateExpiry = null;
-        this.certificateCacheFormat = CertificateFormat.PEM;
-        this.refreshTokenPromises = new Map();
-        const opts = optionsOrClientId && typeof optionsOrClientId === 'object'
-            ? optionsOrClientId
-            : { clientId: optionsOrClientId, clientSecret, redirectUri };
-        this._clientId = opts.clientId;
-        this._clientSecret = opts.clientSecret;
-        this.redirectUri = opts.redirectUri;
-        this.eagerRefreshThresholdMillis =
-            opts.eagerRefreshThresholdMillis || 5 * 60 * 1000;
-        this.forceRefreshOnFailure = !!opts.forceRefreshOnFailure;
+import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
+import '../models/message_model.dart';
+import '../services/cloudinary_service.dart';
+
+class MessageInput extends StatefulWidget {
+  final Function(Message) onSendMessage;
+  final String currentUserId;
+  final String chatId;
+  final bool isEnabled;
+
+  const MessageInput({
+    Key? key,
+    required this.onSendMessage,
+    required this.currentUserId,
+    required this.chatId,
+    this.isEnabled = true,
+  }) : super(key: key);
+
+  @override
+  State<MessageInput> createState() => _MessageInputState();
+}
+
+class _MessageInputState extends State<MessageInput> {
+  final TextEditingController _textController = TextEditingController();
+  final FocusNode _focusNode = FocusNode();
+  final ImagePicker _imagePicker = ImagePicker();
+  
+  bool _isTyping = false;
+  bool _isUploading = false;
+  
+  @override
+  void initState() {
+    super.initState();
+    _textController.addListener(_onTextChanged);
+  }
+
+  @override
+  void dispose() {
+    _textController.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  void _onTextChanged() {
+    final hasText = _textController.text.trim().isNotEmpty;
+    if (_isTyping != hasText) {
+      setState(() {
+        _isTyping = hasText;
+      });
     }
-    /**
-     * Generates URL for consent page landing.
-     * @param opts Options.
-     * @return URL to consent page.
-     */
-    generateAuthUrl(opts = {}) {
-        if (opts.code_challenge_method && !opts.code_challenge) {
-            throw new Error('If a code_challenge_method is provided, code_challenge must be included.');
-        }
-        opts.response_type = opts.response_type || 'code';
-        opts.client_id = opts.client_id || this._clientId;
-        opts.redirect_uri = opts.redirect_uri || this.redirectUri;
-        // Allow scopes to be passed either as array or a string
-        if (Array.isArray(opts.scope)) {
-            opts.scope = opts.scope.join(' ');
-        }
-        const rootUrl = OAuth2Client.GOOGLE_OAUTH2_AUTH_BASE_URL_;
-        return (rootUrl +
-            '?' +
-            querystring.stringify(opts));
-    }
-    generateCodeVerifier() {
-        // To make the code compatible with browser SubtleCrypto we need to make
-        // this method async.
-        throw new Error('generateCodeVerifier is removed, please use generateCodeVerifierAsync instead.');
-    }
-    /**
-     * Convenience method to automatically generate a code_verifier, and its
-     * resulting SHA256. If used, this must be paired with a S256
-     * code_challenge_method.
-     *
-     * For a full example see:
-     * https://github.com/googleapis/google-auth-library-nodejs/blob/main/samples/oauth2-codeVerifier.js
-     */
-    async generateCodeVerifierAsync() {
-        // base64 encoding uses 6 bits per character, and we want to generate128
-        // characters. 6*128/8 = 96.
-        const crypto = (0, crypto_1.createCrypto)();
-        const randomString = crypto.randomBytesBase64(96);
-        // The valid characters in the code_verifier are [A-Z]/[a-z]/[0-9]/
-        // "-"/"."/"_"/"~". Base64 encoded strings are pretty close, so we're just
-        // swapping out a few chars.
-        const codeVerifier = randomString
-            .replace(/\+/g, '~')
-            .replace(/=/g, '_')
-            .replace(/\//g, '-');
-        // Generate the base64 encoded SHA256
-        const unencodedCodeChallenge = await crypto.sha256DigestBase64(codeVerifier);
-        // We need to use base64UrlEncoding instead of standard base64
-        const codeChallenge = unencodedCodeChallenge
-            .split('=')[0]
-            .replace(/\+/g, '-')
-            .replace(/\//g, '_');
-        return { codeVerifier, codeChallenge };
-    }
-    getToken(codeOrOptions, callback) {
-        const options = typeof codeOrOptions === 'string' ? { code: codeOrOptions } : codeOrOptions;
-        if (callback) {
-            this.getTokenAsync(options).then(r => callback(null, r.tokens, r.res), e => callback(e, null, e.response));
-        }
-        else {
-            return this.getTokenAsync(options);
-        }
-    }
-    async getTokenAsync(options) {
-        const url = OAuth2Client.GOOGLE_OAUTH2_TOKEN_URL_;
-        const values = {
-            code: options.code,
-            client_id: options.client_id || this._clientId,
-            client_secret: this._clientSecret,
-            redirect_uri: options.redirect_uri || this.redirectUri,
-            grant_type: 'authorization_code',
-            code_verifier: options.codeVerifier,
-        };
-        const res = await this.transporter.request({
-            method: 'POST',
-            url,
-            data: querystring.stringify(values),
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+  }
+
+  Future<void> _sendTextMessage() async {
+    final text = _textController.text.trim();
+    if (text.isEmpty || !widget.isEnabled) return;
+
+    _textController.clear();
+    setState(() {
+      _isTyping = false;
+    });
+
+    final message = Message(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      senderId: widget.currentUserId,
+      chatId: widget.chatId,
+      content: text,
+      type: MessageType.text,
+      timestamp: DateTime.now(),
+      isRead: false,
+    );
+
+    widget.onSendMessage(message);
+  }
+
+  Future<void> _sendImageMessage() async {
+    if (!widget.isEnabled || _isUploading) return;
+
+    try {
+      final XFile? image = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1920,
+        maxHeight: 1080,
+        imageQuality: 85,
+      );
+
+      if (image != null) {
+        setState(() {
+          _isUploading = true;
         });
-        const tokens = res.data;
-        if (res.data && res.data.expires_in) {
-            tokens.expiry_date = new Date().getTime() + res.data.expires_in * 1000;
-            delete tokens.expires_in;
+
+        final imageFile = File(image.path);
+        final imageUrl = await CloudinaryService.uploadImage(
+          imageFile,
+          folder: 'chat_images',
+        );
+
+        if (imageUrl != null) {
+          final message = Message(
+            id: DateTime.now().millisecondsSinceEpoch.toString(),
+            senderId: widget.currentUserId,
+            chatId: widget.chatId,
+            content: imageUrl,
+            type: MessageType.image,
+            timestamp: DateTime.now(),
+            isRead: false,
+          );
+
+          widget.onSendMessage(message);
+        } else {
+          _showErrorSnackBar('Failed to upload image');
         }
-        this.emit('tokens', tokens);
-        return { tokens, res };
+      }
+    } catch (e) {
+      print('Error sending image: $e');
+      _showErrorSnackBar('Error selecting image');
+    } finally {
+      setState(() {
+        _isUploading = false;
+      });
     }
-    /**
-     * Refreshes the access token.
-     * @param refresh_token Existing refresh token.
-     * @private
-     */
-    async refreshToken(refreshToken) {
-        if (!refreshToken) {
-            return this.refreshTokenNoCache(refreshToken);
-        }
-        // If a request to refresh using the same token has started,
-        // return the same promise.
-        if (this.refreshTokenPromises.has(refreshToken)) {
-            return this.refreshTokenPromises.get(refreshToken);
-        }
-        const p = this.refreshTokenNoCache(refreshToken).then(r => {
-            this.refreshTokenPromises.delete(refreshToken);
-            return r;
-        }, e => {
-            this.refreshTokenPromises.delete(refreshToken);
-            throw e;
+  }
+
+  Future<void> _sendCameraImage() async {
+    if (!widget.isEnabled || _isUploading) return;
+
+    try {
+      final XFile? image = await _imagePicker.pickImage(
+        source: ImageSource.camera,
+        maxWidth: 1920,
+        maxHeight: 1080,
+        imageQuality: 85,
+      );
+
+      if (image != null) {
+        setState(() {
+          _isUploading = true;
         });
-        this.refreshTokenPromises.set(refreshToken, p);
-        return p;
+
+        final imageFile = File(image.path);
+        final imageUrl = await CloudinaryService.uploadImage(
+          imageFile,
+          folder: 'chat_images',
+        );
+
+        if (imageUrl != null) {
+          final message = Message(
+            id: DateTime.now().millisecondsSinceEpoch.toString(),
+            senderId: widget.currentUserId,
+            chatId: widget.chatId,
+            content: imageUrl,
+            type: MessageType.image,
+            timestamp: DateTime.now(),
+            isRead: false,
+          );
+
+          widget.onSendMessage(message);
+        } else {
+          _showErrorSnackBar('Failed to upload image');
+        }
+      }
+    } catch (e) {
+      print('Error taking photo: $e');
+      _showErrorSnackBar('Error taking photo');
+    } finally {
+      setState(() {
+        _isUploading = false;
+      });
     }
-    async refreshTokenNoCache(refreshToken) {
-        var _a;
-        if (!refreshToken) {
-            throw new Error('No refresh token is set.');
+  }
+
+  Future<void> _sendVideoMessage() async {
+    if (!widget.isEnabled || _isUploading) return;
+
+    try {
+      final XFile? video = await _imagePicker.pickVideo(
+        source: ImageSource.gallery,
+        maxDuration: const Duration(minutes: 5),
+      );
+
+      if (video != null) {
+        setState(() {
+          _isUploading = true;
+        });
+
+        final videoFile = File(video.path);
+        final videoUrl = await CloudinaryService.uploadVideo(
+          videoFile,
+          folder: 'chat_videos',
+        );
+
+        if (videoUrl != null) {
+          final message = Message(
+            id: DateTime.now().millisecondsSinceEpoch.toString(),
+            senderId: widget.currentUserId,
+            chatId: widget.chatId,
+            content: videoUrl,
+            type: MessageType.video,
+            timestamp: DateTime.now(),
+            isRead: false,
+          );
+
+          widget.onSendMessage(message);
+        } else {
+          _showErrorSnackBar('Failed to upload video');
         }
-        const url = OAuth2Client.GOOGLE_OAUTH2_TOKEN_URL_;
-        const data = {
-            refresh_token: refreshToken,
-            client_id: this._clientId,
-            client_secret: this._clientSecret,
-            grant_type: 'refresh_token',
-        };
-        let res;
-        try {
-            // request for new token
-            res = await this.transporter.request({
-                method: 'POST',
-                url,
-                data: querystring.stringify(data),
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            });
-        }
-        catch (e) {
-            if (e instanceof gaxios_1.GaxiosError &&
-                e.message === 'invalid_grant' &&
-                ((_a = e.response) === null || _a === void 0 ? void 0 : _a.data) &&
-                /ReAuth/i.test(e.response.data.error_description)) {
-                e.message = JSON.stringify(e.response.data);
-            }
-            throw e;
-        }
-        const tokens = res.data;
-        // TODO: de-duplicate this code from a few spots
-        if (res.data && res.data.expires_in) {
-            tokens.expiry_date = new Date().getTime() + res.data.expires_in * 1000;
-            delete tokens.expires_in;
-        }
-        this.emit('tokens', tokens);
-        return { tokens, res };
+      }
+    } catch (e) {
+      print('Error sending video: $e');
+      _showErrorSnackBar('Error selecting video');
+    } finally {
+      setState(() {
+        _isUploading = false;
+      });
     }
-    refreshAccessToken(callback) {
-        if (callback) {
-            this.refreshAccessTokenAsync().then(r => callback(null, r.credentials, r.res), callback);
-        }
-        else {
-            return this.refreshAccessTokenAsync();
-        }
-    }
-    async refreshAccessTokenAsync() {
-        const r = await this.refreshToken(this.credentials.refresh_token);
-        const tokens = r.tokens;
-        tokens.refresh_token = this.credentials.refresh_token;
-        this.credentials = tokens;
-        return { credentials: this.credentials, res: r.res };
-    }
-    getAccessToken(callback) {
-        if (callback) {
-            this.getAccessTokenAsync().then(r => callback(null, r.token, r.res), callback);
-        }
-        else {
-            return this.getAccessTokenAsync();
-        }
-    }
-    async getAccessTokenAsync() {
-        const shouldRefresh = !this.credentials.access_token || this.isTokenExpiring();
-        if (shouldRefresh) {
-            if (!this.credentials.refresh_token) {
-                if (this.refreshHandler) {
-                    const refreshedAccessToken = await this.processAndValidateRefreshHandler();
-                    if (refreshedAccessToken === null || refreshedAccessToken === void 0 ? void 0 : refreshedAccessToken.access_token) {
-                        this.setCredentials(refreshedAccessToken);
-                        return { token: this.credentials.access_token };
-                    }
-                }
-                else {
-                    throw new Error('No refresh token or refresh handler callback is set.');
-                }
-            }
-            const r = await this.refreshAccessTokenAsync();
-            if (!r.credentials || (r.credentials && !r.credentials.access_token)) {
-                throw new Error('Could not refresh access token.');
-            }
-            return { token: r.credentials.access_token, res: r.res };
-        }
-        else {
-            return { token: this.credentials.access_token };
-        }
-    }
-    /**
-     * The main authentication interface.  It takes an optional url which when
-     * present is the endpoint being accessed, and returns a Promise which
-     * resolves with authorization header fields.
-     *
-     * In OAuth2Client, the result has the form:
-     * { Authorization: 'Bearer <access_token_value>' }
-     * @param url The optional url being authorized
-     */
-    async getRequestHeaders(url) {
-        const headers = (await this.getRequestMetadataAsync(url)).headers;
-        return headers;
-    }
-    async getRequestMetadataAsync(
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    url) {
-        const thisCreds = this.credentials;
-        if (!thisCreds.access_token &&
-            !thisCreds.refresh_token &&
-            !this.apiKey &&
-            !this.refreshHandler) {
-            throw new Error('No access, refresh token, API key or refresh handler callback is set.');
-        }
-        if (thisCreds.access_token && !this.isTokenExpiring()) {
-            thisCreds.token_type = thisCreds.token_type || 'Bearer';
-            const headers = {
-                Authorization: thisCreds.token_type + ' ' + thisCreds.access_token,
-            };
-            return { headers: this.addSharedMetadataHeaders(headers) };
-        }
-        // If refreshHandler exists, call processAndValidateRefreshHandler().
-        if (this.refreshHandler) {
-            const refreshedAccessToken = await this.processAndValidateRefreshHandler();
-            if (refreshedAccessToken === null || refreshedAccessToken === void 0 ? void 0 : refreshedAccessToken.access_token) {
-                this.setCredentials(refreshedAccessToken);
-                const headers = {
-                    Authorization: 'Bearer ' + this.credentials.access_token,
-                };
-                return { headers: this.addSharedMetadataHeaders(headers) };
-            }
-        }
-        if (this.apiKey) {
-            return { headers: { 'X-Goog-Api-Key': this.apiKey } };
-        }
-        let r = null;
-        let tokens = null;
-        try {
-            r = await this.refreshToken(thisCreds.refresh_token);
-            tokens = r.tokens;
-        }
-        catch (err) {
-            const e = err;
-            if (e.response &&
-                (e.response.status === 403 || e.response.status === 404)) {
-                e.message = `Could not refresh access token: ${e.message}`;
-            }
-            throw e;
-        }
-        const credentials = this.credentials;
-        credentials.token_type = credentials.token_type || 'Bearer';
-        tokens.refresh_token = credentials.refresh_token;
-        this.credentials = tokens;
-        const headers = {
-            Authorization: credentials.token_type + ' ' + tokens.access_token,
-        };
-        return { headers: this.addSharedMetadataHeaders(headers), res: r.res };
-    }
-    /**
-     * Generates an URL to revoke the given token.
-     * @param token The existing token to be revoked.
-     */
-    static getRevokeTokenUrl(token) {
-        const parameters = querystring.stringify({ token });
-        return `${OAuth2Client.GOOGLE_OAUTH2_REVOKE_URL_}?${parameters}`;
-    }
-    revokeToken(token, callback) {
-        const opts = {
-            url: OAuth2Client.getRevokeTokenUrl(token),
-            method: 'POST',
-        };
-        if (callback) {
-            this.transporter
-                .request(opts)
-                .then(r => callback(null, r), callback);
-        }
-        else {
-            return this.transporter.request(opts);
-        }
-    }
-    revokeCredentials(callback) {
-        if (callback) {
-            this.revokeCredentialsAsync().then(res => callback(null, res), callback);
-        }
-        else {
-            return this.revokeCredentialsAsync();
-        }
-    }
-    async revokeCredentialsAsync() {
-        const token = this.credentials.access_token;
-        this.credentials = {};
-        if (token) {
-            return this.revokeToken(token);
-        }
-        else {
-            throw new Error('No acce
+  }
+
+  void _showAttachmentOptions() {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_library, color: Colors.blue),
+              title: const Text('Photo Library'),
+              onTap: () {
+                Navigator.pop(context);
+                _sendImageMessage();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.camera_alt, color: Colors.green),
+              title: const Text('Camera'),
+              onTap: () {
+                Navigator.pop(context);
+                _sendCameraImage();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.video_library, color: Colors.purple),
+              title: const Text('Video'),
+              onTap: () {
+                Navigator.pop(context);
+                _sendVideoMessage();
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
+      decoration: BoxDecoration(
+        color: Theme.of(context).scaffoldBackgroundColor,
+        border: Border(
+          top: BorderSide(
+            color: Colors.grey.shade300,
+            width: 0.5,
+          ),
+        ),
+      ),
+      child: SafeArea(
+        child: Row(
+          children: [
+            // Attachment button
+            IconButton(
+              icon: Icon(
+                Icons.attach_file,
+                color: widget.isEnabled ? Colors.grey.shade600 : Colors.grey.shade400,
+              ),
+              onPressed: widget.isEnabled && !_isUploading 
+                  ? _showAttachmentOptions 
+                  : null,
+            ),
+            
+            // Text input field
+            Expanded(
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(24.0),
+                ),
+                child: TextField(
+                  controller: _textController,
+                  focusNode: _focusNode,
+                  enabled: widget.isEnabled && !_isUploading,
+                  maxLines: null,
+                  keyboardType: TextInputType.multiline,
+                  textCapitalization: TextCapitalization.sentences,
+                  decoration: InputDecoration(
+                    hintText: _isUploading 
+                        ? 'Uploading...' 
+                        : 'Type a message...',
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16.0,
+                      vertical: 12.0,
+                    ),
+                    border: InputBorder.none,
+                    suffixIcon: _isUploading
+                        ? const Padding(
+                            padding: EdgeInsets.all(12.0),
+                            child: SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          )
+                        : null,
+                  ),
+                  onSubmitted: (_) => _sendTextMessage(),
+                ),
+              ),
+            ),
+            
+            const SizedBox(width: 8.0),
+            
+            // Send button
+            Container(
+              decoration: BoxDecoration(
+                color: _isTyping && widget.isEnabled 
+                    ? Theme.of(context).primaryColor 
+                    : Colors.grey.shade400,
+                shape: BoxShape.circle,
+              ),
+              child: IconButton(
+                icon: const Icon(
+                  Icons.send,
+                  color: Colors.white,
+                ),
+                onPressed: _isTyping && widget.isEnabled && !_isUploading
+                    ? _sendTextMessage
+                    : null,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
