@@ -5,7 +5,7 @@ import '../models/message_model.dart';
 import '../services/cloudinary_service.dart';
 
 class MessageInput extends StatefulWidget {
-  final Function(Message) onSendMessage;
+  final Function(MessageModel) onSendMessage;
   final String currentUserId;
   final String chatId;
   final bool isEnabled;
@@ -61,10 +61,10 @@ class _MessageInputState extends State<MessageInput> {
       _isTyping = false;
     });
 
-    final message = Message(
+    final message = MessageModel(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       senderId: widget.currentUserId,
-      chatId: widget.chatId,
+      senderEmail: '', // Add proper email handling
       content: text,
       type: MessageType.text,
       timestamp: DateTime.now(),
@@ -97,14 +97,15 @@ class _MessageInputState extends State<MessageInput> {
         );
 
         if (imageUrl != null) {
-          final message = Message(
+          final message = MessageModel(
             id: DateTime.now().millisecondsSinceEpoch.toString(),
             senderId: widget.currentUserId,
-            chatId: widget.chatId,
+            senderEmail: '', // Add proper email handling
             content: imageUrl,
             type: MessageType.image,
             timestamp: DateTime.now(),
             isRead: false,
+            mediaUrl: imageUrl,
           );
 
           widget.onSendMessage(message);
@@ -145,14 +146,15 @@ class _MessageInputState extends State<MessageInput> {
         );
 
         if (imageUrl != null) {
-          final message = Message(
+          final message = MessageModel(
             id: DateTime.now().millisecondsSinceEpoch.toString(),
             senderId: widget.currentUserId,
-            chatId: widget.chatId,
+            senderEmail: '', // Add proper email handling
             content: imageUrl,
             type: MessageType.image,
             timestamp: DateTime.now(),
             isRead: false,
+            mediaUrl: imageUrl,
           );
 
           widget.onSendMessage(message);
@@ -191,14 +193,15 @@ class _MessageInputState extends State<MessageInput> {
         );
 
         if (videoUrl != null) {
-          final message = Message(
+          final message = MessageModel(
             id: DateTime.now().millisecondsSinceEpoch.toString(),
             senderId: widget.currentUserId,
-            chatId: widget.chatId,
+            senderEmail: '', // Add proper email handling
             content: videoUrl,
             type: MessageType.video,
             timestamp: DateTime.now(),
             isRead: false,
+            mediaUrl: videoUrl,
           );
 
           widget.onSendMessage(message);
