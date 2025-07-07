@@ -8,8 +8,15 @@ import 'call_screen.dart';
 
 class IncomingCallScreen extends StatefulWidget {
   final CallModel call;
+  final VoidCallback? onAccept;
+  final VoidCallback? onDecline;
 
-  const IncomingCallScreen({Key? key, required this.call}) : super(key: key);
+  const IncomingCallScreen({
+    Key? key, 
+    required this.call,
+    this.onAccept,
+    this.onDecline,
+  }) : super(key: key);
 
   @override
   State<IncomingCallScreen> createState() => _IncomingCallScreenState();
@@ -91,7 +98,13 @@ class _IncomingCallScreenState extends State<IncomingCallScreen>
       // Stop the ringtone
       _notificationService.stopRingtone();
 
-      // Update call status to accepted
+      // Call the onAccept callback if provided
+      if (widget.onAccept != null) {
+        widget.onAccept!();
+        return;
+      }
+
+      // Update call status to accepted (fallback behavior)
       await _callService.answerCall(widget.call.id);
 
       // Navigate to call screen with the call model
@@ -117,7 +130,13 @@ class _IncomingCallScreenState extends State<IncomingCallScreen>
 
     _notificationService.stopRingtone();
 
-    // Update call status in Firestore
+    // Call the onDecline callback if provided
+    if (widget.onDecline != null) {
+      widget.onDecline!();
+      return;
+    }
+
+    // Update call status in Firestore (fallback behavior)
     await _callService.updateCallStatus(
       widget.call.id,
       CallStatus.rejected,
