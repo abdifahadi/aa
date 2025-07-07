@@ -13,6 +13,10 @@ class ChatModel {
   final String? groupName;
   final String? groupPhotoUrl;
   final Map<String, bool> typingUsers; // Track which users are typing
+  final int unreadCount;
+  final bool isArchived;
+  final bool isMuted;
+  final DateTime updatedAt;
 
   ChatModel({
     required this.id,
@@ -27,10 +31,15 @@ class ChatModel {
     this.groupName,
     this.groupPhotoUrl,
     Map<String, bool>? typingUsers,
+    this.unreadCount = 0,
+    this.isArchived = false,
+    this.isMuted = false,
+    DateTime? updatedAt,
   }) : 
     participantNames = participantNames ?? {},
     participantPhotos = participantPhotos ?? {},
-    typingUsers = typingUsers ?? {};
+    typingUsers = typingUsers ?? {},
+    updatedAt = updatedAt ?? DateTime.now();
 
   factory ChatModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
@@ -75,6 +84,45 @@ class ChatModel {
       groupName: data['groupName'],
       groupPhotoUrl: data['groupPhotoUrl'],
       typingUsers: typingUsers,
+      unreadCount: data['unreadCount'] ?? 0,
+      isArchived: data['isArchived'] ?? false,
+      isMuted: data['isMuted'] ?? false,
+      updatedAt: data['updatedAt'] != null
+          ? (data['updatedAt'] as Timestamp).toDate()
+          : DateTime.now(),
+    );
+  }
+
+  // Create from Map (for local database)
+  factory ChatModel.fromMap(Map<String, dynamic> data, String docId) {
+    // Handle timestamps
+    DateTime parseTimestamp(dynamic timestamp) {
+      if (timestamp == null) return DateTime.now();
+      if (timestamp is Timestamp) return timestamp.toDate();
+      if (timestamp is DateTime) return timestamp;
+      if (timestamp is int) return DateTime.fromMillisecondsSinceEpoch(timestamp);
+      return DateTime.now();
+    }
+
+    return ChatModel(
+      id: docId,
+      participants: List<String>.from(data['participants'] ?? []),
+      participantNames: Map<String, String>.from(data['participantNames'] ?? {}),
+      participantPhotos: Map<String, String>.from(data['participantPhotos'] ?? {}),
+      createdAt: parseTimestamp(data['createdAt']),
+      lastMessageAt: data['lastMessageAt'] != null 
+          ? parseTimestamp(data['lastMessageAt'])
+          : null,
+      lastMessageText: data['lastMessageText'],
+      lastMessageSenderId: data['lastMessageSenderId'],
+      isGroup: data['isGroup'] ?? false,
+      groupName: data['groupName'],
+      groupPhotoUrl: data['groupPhotoUrl'],
+      typingUsers: Map<String, bool>.from(data['typingUsers'] ?? {}),
+      unreadCount: data['unreadCount'] ?? 0,
+      isArchived: data['isArchived'] ?? false,
+      isMuted: data['isMuted'] ?? false,
+      updatedAt: parseTimestamp(data['updatedAt']),
     );
   }
 
@@ -91,6 +139,10 @@ class ChatModel {
       'groupName': groupName,
       'groupPhotoUrl': groupPhotoUrl,
       'typingUsers': typingUsers,
+      'unreadCount': unreadCount,
+      'isArchived': isArchived,
+      'isMuted': isMuted,
+      'updatedAt': Timestamp.fromDate(updatedAt),
     };
   }
 
@@ -187,6 +239,10 @@ class ChatModel {
     String? groupName,
     String? groupPhotoUrl,
     Map<String, bool>? typingUsers,
+    int? unreadCount,
+    bool? isArchived,
+    bool? isMuted,
+    DateTime? updatedAt,
   }) {
     return ChatModel(
       id: id ?? this.id,
@@ -201,6 +257,10 @@ class ChatModel {
       groupName: groupName ?? this.groupName,
       groupPhotoUrl: groupPhotoUrl ?? this.groupPhotoUrl,
       typingUsers: typingUsers ?? this.typingUsers,
+      unreadCount: unreadCount ?? this.unreadCount,
+      isArchived: isArchived ?? this.isArchived,
+      isMuted: isMuted ?? this.isMuted,
+      updatedAt: updatedAt ?? this.updatedAt,
     );
   }
 

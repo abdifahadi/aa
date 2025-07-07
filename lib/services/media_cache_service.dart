@@ -1,11 +1,11 @@
 import 'dart:io';
 import 'dart:typed_data';
+import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
 import 'package:crypto/crypto.dart';
 import 'dart:convert';
-import 'dart:math';
 import '../utils/constants.dart';
 
 class MediaCacheService {

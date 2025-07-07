@@ -99,10 +99,24 @@ class CallService {
   }
 
   // Get call by ID
-  Stream<CallModel?> getCallById(String callId) {
+  Future<CallModel?> getCall(String callId) async {
+    try {
+      final doc = await _callsCollection.doc(callId).get();
+      if (doc.exists) {
+        return CallModel.fromMap(doc.data() as Map<String, dynamic>, doc.id);
+      }
+      return null;
+    } catch (e) {
+      debugPrint('❌ Error getting call: $e');
+      return null;
+    }
+  }
+
+  // Listen to call updates
+  Stream<CallModel?> listenToCall(String callId) {
     return _callsCollection.doc(callId).snapshots().map((doc) {
       if (doc.exists) {
-        return CallModel.fromFirestore(doc);
+        return CallModel.fromMap(doc.data() as Map<String, dynamic>, doc.id);
       }
       return null;
     });
@@ -601,30 +615,6 @@ class CallService {
     } catch (e) {
       debugPrint('❌ Error switching camera: $e');
     }
-  }
-
-  // Get call by ID
-  Future<CallModel?> getCall(String callId) async {
-    try {
-      final doc = await _callsCollection.doc(callId).get();
-      if (doc.exists) {
-        return CallModel.fromMap(doc.data() as Map<String, dynamic>);
-      }
-      return null;
-    } catch (e) {
-      debugPrint('❌ Error getting call: $e');
-      return null;
-    }
-  }
-
-  // Listen to call updates
-  Stream<CallModel?> listenToCall(String callId) {
-    return _callsCollection.doc(callId).snapshots().map((doc) {
-      if (doc.exists) {
-        return CallModel.fromMap(doc.data() as Map<String, dynamic>);
-      }
-      return null;
-    });
   }
 
   // Listen to incoming calls for a user

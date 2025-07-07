@@ -262,19 +262,32 @@ class NotificationService {
   // Play ringtone for incoming calls
   Future<void> playRingtone() async {
     try {
-      // This would typically use a plugin like just_audio to play ringtone
-      debugPrint('🔔 Playing ringtone...');
-      // Implementation would depend on your audio plugin choice
+      if (!_isRingtonePlaying) {
+        // This would typically use a plugin like just_audio to play ringtone
+        debugPrint('🔔 Playing ringtone...');
+        _isRingtonePlaying = true;
+        // Implementation would depend on your audio plugin choice
+        // await _audioPlayer.play(AssetSource('sounds/ringtone.mp3'));
+      }
     } catch (e) {
       debugPrint('❌ Error playing ringtone: $e');
     }
   }
 
+  // Internal method to play ringtone
+  Future<void> _playRingtone() async {
+    await playRingtone();
+  }
+
   // Stop ringtone
   Future<void> stopRingtone() async {
     try {
-      debugPrint('🔕 Stopping ringtone...');
-      // Implementation would depend on your audio plugin choice
+      if (_isRingtonePlaying) {
+        debugPrint('🔕 Stopping ringtone...');
+        _isRingtonePlaying = false;
+        // Implementation would depend on your audio plugin choice
+        // await _audioPlayer.stop();
+      }
     } catch (e) {
       debugPrint('❌ Error stopping ringtone: $e');
     }
