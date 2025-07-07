@@ -6,7 +6,9 @@ import 'dart:io';
 import '../../models/chat_model.dart';
 import '../../models/message_model.dart';
 import '../../models/user_model.dart';
+import '../../models/call_model.dart';
 import '../../services/firebase_service.dart';
+import '../../services/call_service.dart';
 import '../../widgets/chat_widgets.dart';
 import '../call_screen.dart';
 
@@ -389,31 +391,77 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  void _makeVoiceCall() {
+  void _makeVoiceCall() async {
     if (_otherUser != null) {
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (context) => CallScreen(
-            isVideoCall: false,
-            calleeUser: _otherUser!,
-            currentUser: widget.currentUser,
-          ),
-        ),
-      );
+      try {
+        // Import call service
+        final callService = CallService();
+        
+        // Start audio call
+        final call = await callService.startCall(
+          receiverId: _otherUser!.uid,
+          receiverName: _otherUser!.name,
+          receiverPhotoUrl: _otherUser!.photoUrl ?? '',
+          callType: CallType.audio,
+        );
+        
+        if (call != null) {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => CallScreen(
+                call: call,
+                isIncoming: false,
+              ),
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('কল করতে সমস্যা হয়েছে')),
+          );
+        }
+      } catch (e) {
+        print('Error making voice call: $e');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('কল করতে সমস্যা হয়েছে')),
+        );
+      }
     }
   }
 
-  void _makeVideoCall() {
+  void _makeVideoCall() async {
     if (_otherUser != null) {
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (context) => CallScreen(
-            isVideoCall: true,
-            calleeUser: _otherUser!,
-            currentUser: widget.currentUser,
-          ),
-        ),
-      );
+      try {
+        // Import call service
+        final callService = CallService();
+        
+        // Start video call
+        final call = await callService.startCall(
+          receiverId: _otherUser!.uid,
+          receiverName: _otherUser!.name,
+          receiverPhotoUrl: _otherUser!.photoUrl ?? '',
+          callType: CallType.video,
+        );
+        
+        if (call != null) {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => CallScreen(
+                call: call,
+                isIncoming: false,
+              ),
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('কল করতে সমস্যা হয়েছে')),
+          );
+        }
+      } catch (e) {
+        print('Error making video call: $e');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('কল করতে সমস্যা হয়েছে')),
+        );
+      }
     }
   }
 
