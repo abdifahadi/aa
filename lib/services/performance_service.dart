@@ -1,8 +1,11 @@
 import 'dart:async';
 import 'dart:isolate';
 import 'dart:developer' as developer;
+import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import '../utils/constants.dart';
 
 class PerformanceService {
@@ -37,7 +40,7 @@ class PerformanceService {
     _memoryCleanupTimer?.cancel();
     _performanceMonitorTimer?.cancel();
     if (_frameCallback != null) {
-      WidgetsBinding.instance.removePostFrameCallback(_frameCallback!);
+      SchedulerBinding.instance.removePostFrameCallback(_frameCallback!);
     }
   }
 
@@ -153,10 +156,10 @@ class PerformanceService {
       _frameCount++;
       
       // Schedule next frame callback
-      WidgetsBinding.instance.addPostFrameCallback(_frameCallback!);
+      SchedulerBinding.instance.addPostFrameCallback(_frameCallback!);
     };
     
-    WidgetsBinding.instance.addPostFrameCallback(_frameCallback!);
+    SchedulerBinding.instance.addPostFrameCallback(_frameCallback!);
   }
 
   // Performance monitoring
@@ -249,9 +252,9 @@ class PerformanceService {
   }
 
   // Image caching optimization
-  void preloadImages(List<String> imageUrls) {
+  void preloadImages(List<String> imageUrls, BuildContext context) {
     for (final url in imageUrls.take(10)) { // Limit preloading
-      precacheImage(NetworkImage(url), navigatorKey.currentContext!);
+      precacheImage(NetworkImage(url), context);
     }
   }
 
@@ -309,7 +312,7 @@ class PerformanceService {
   // Background task optimization
   void scheduleBackgroundTask(String taskName, Function task) {
     // Schedule task to run when app is idle
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
+    SchedulerBinding.instance.addPostFrameCallback((_) async {
       if (AppConstants.enablePerformanceLogs) {
         startOperation('background_task_$taskName');
       }
@@ -384,6 +387,3 @@ class _PerformanceTrackingWidgetState extends State<_PerformanceTrackingWidget> 
     return widget.child;
   }
 }
-
-// Placeholder for navigator key - this should be defined in your main app
-final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();

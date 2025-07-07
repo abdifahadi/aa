@@ -232,3 +232,71 @@ class StoragePaths {
   static const String thumbnails = 'thumbnails';
   static const String temp = 'temp';
 }
+
+// App screens enum
+enum AppScreen {
+  signIn,
+  signUp,
+  profile,
+  main,
+  settings,
+  chat,
+  call,
+  video,
+  splash,
+}
+
+// Call event types
+enum CallEvent {
+  userJoined,
+  userLeft,
+  localVideoStateChanged,
+  remoteVideoStateChanged,
+  remoteAudioStateChanged,
+  audioVolumeIndication,
+  connectionStateChanged,
+  callEnded,
+  callFailed,
+}
+
+// Video state enum
+enum VideoState {
+  stopped,
+  starting,
+  decoding,
+  frozen,
+  failed,
+}
+
+// Audio state enum
+enum AudioState {
+  stopped,
+  starting,
+  decoding,
+  frozen,
+  failed,
+}
+
+// Connection state enum
+enum ConnectionState {
+  disconnected,
+  connecting,
+  connected,
+  reconnecting,
+  failed,
+}
+
+// Audio volume info class
+class AudioVolumeInfo {
+  final int uid;
+  final int volume;
+  final int vad;
+  final String channelId;
+  
+  AudioVolumeInfo({
+    required this.uid,
+    required this.volume,
+    required this.vad,
+    required this.channelId,
+  });
+}

@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:provider/provider.dart';
 import 'screens/chat_app.dart';
-import 'screens/call_handler.dart';
+import 'screens/call_handler.dart' show CallHandler, navigatorKey;
 import 'screens/developer_menu.dart';
 import 'theme/theme_provider.dart';
 import 'models/user_model.dart';
@@ -13,7 +12,6 @@ import 'services/notification_service.dart';
 import 'services/connectivity_service.dart';
 import 'services/call_service.dart';
 import 'services/local_database.dart';
-import 'services/offline_sync_service.dart';
 import 'services/performance_service.dart';
 import 'services/error_handler.dart';
 import 'utils/constants.dart';
@@ -21,7 +19,6 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 import 'screens/test/agora_call_verification.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/services.dart';
-import 'package:agora_rtc_engine/agora_rtc_engine.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 // Background message handler for Firebase Cloud Messaging
@@ -323,8 +320,7 @@ class _AppLifecycleManagerState extends State<AppLifecycleManager>
   Future<void> _setUserOnline() async {
     if (_isOnline && _firebaseService.currentUser != null) {
       try {
-        await _firebaseService.updateUserStatus(
-            _firebaseService.currentUser!.uid, UserStatus.online);
+        await _firebaseService.updateUserStatus(UserStatus.online);
       } catch (e) {
         print("Error setting user online: $e");
       }
@@ -334,8 +330,7 @@ class _AppLifecycleManagerState extends State<AppLifecycleManager>
   Future<void> _setUserOffline() async {
     if (_firebaseService.currentUser != null) {
       try {
-        await _firebaseService.updateUserStatus(
-            _firebaseService.currentUser!.uid, UserStatus.offline);
+        await _firebaseService.updateUserStatus(UserStatus.offline);
       } catch (e) {
         print("Error setting user offline: $e");
       }

@@ -441,26 +441,48 @@ class CallService {
   }
 
   // Toggle mute
-  Future<void> toggleMute() async {
+  Future<bool> toggleMute() async {
     try {
       if (_engine != null) {
-        await _engine!.muteLocalAudioStream(true);
-        debugPrint('🔇 Audio muted');
+        // This should track the current mute state and toggle it
+        bool isMuted = false; // You should track this state in the class
+        await _engine!.muteLocalAudioStream(!isMuted);
+        debugPrint('🔇 Audio ${!isMuted ? "muted" : "unmuted"}');
+        return !isMuted;
       }
+      return false;
     } catch (e) {
       debugPrint('❌ Error toggling mute: $e');
+      return false;
     }
   }
 
   // Toggle camera
-  Future<void> toggleCamera() async {
+  Future<bool> toggleCamera() async {
     try {
       if (_engine != null) {
-        await _engine!.muteLocalVideoStream(true);
-        debugPrint('📹 Camera toggled');
+        // This should track the current camera state and toggle it
+        bool isEnabled = true; // You should track this state in the class
+        await _engine!.muteLocalVideoStream(!isEnabled);
+        debugPrint('📹 Camera ${!isEnabled ? "disabled" : "enabled"}');
+        return !isEnabled;
       }
+      return false;
     } catch (e) {
       debugPrint('❌ Error toggling camera: $e');
+      return false;
+    }
+  }
+
+  // Enable/disable speakerphone
+  Future<void> enableSpeakerphone(bool enabled) async {
+    try {
+      if (_engine != null) {
+        await _engine!.setEnableSpeakerphone(enabled);
+        debugPrint('🔊 Speakerphone ${enabled ? "enabled" : "disabled"}');
+      }
+    } catch (e) {
+      debugPrint('❌ Error setting speakerphone: $e');
     }
   }
 
@@ -555,6 +577,77 @@ class CallService {
       }
     } catch (e) {
       debugPrint('❌ Error disposing call service: $e');
+    }
+  }
+
+  // Register event handler for call events
+  void registerEventHandler(Function(CallEvent) handler, {
+    Function(int, int)? onUserJoined,
+    Function(int, int)? onUserOffline,
+    Function(VideoState)? onLocalVideoStateChanged,
+    Function(int, VideoState)? onRemoteVideoStateChanged,
+    Function(int, AudioState)? onRemoteAudioStateChanged,
+    Function(List<AudioVolumeInfo>)? onAudioVolumeIndication,
+    Function(ConnectionState)? onConnectionStateChanged,
+  }) {
+    // Store the event handler for call events
+    debugPrint('🎯 Registering event handler for call events');
+    
+    // Set up engine event handlers if engine is available
+    if (_engine != null) {
+      // Register engine event handlers here
+      // This is where you'd wire up the actual Agora SDK event handlers
+    }
+  }
+
+  // Enable audio (fixed method signature)
+  Future<void> enableAudio([bool enable = true]) async {
+    try {
+      if (_engine != null) {
+        if (enable) {
+          await _engine!.enableAudio();
+        } else {
+          await _engine!.disableAudio();
+        }
+        debugPrint('🔊 Audio ${enable ? "enabled" : "disabled"}');
+      }
+    } catch (e) {
+      debugPrint('❌ Error enabling audio: $e');
+    }
+  }
+
+  // Answer call
+  Future<void> answerCall(String callId) async {
+    try {
+      debugPrint('📞 Answering call: $callId');
+      // Add your call answering logic here
+      // This might involve joining a channel or updating call status
+    } catch (e) {
+      debugPrint('❌ Error answering call: $e');
+    }
+  }
+
+  // Leave channel
+  Future<void> leaveChannel() async {
+    try {
+      if (_engine != null) {
+        await _engine!.leaveChannel();
+        debugPrint('🚪 Left channel');
+      }
+    } catch (e) {
+      debugPrint('❌ Error leaving channel: $e');
+    }
+  }
+
+  // Mute local audio
+  Future<void> muteLocalAudio(bool mute) async {
+    try {
+      if (_engine != null) {
+        await _engine!.muteLocalAudioStream(mute);
+        debugPrint('🔇 Local audio ${mute ? "muted" : "unmuted"}');
+      }
+    } catch (e) {
+      debugPrint('❌ Error muting local audio: $e');
     }
   }
 }

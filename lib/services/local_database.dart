@@ -207,6 +207,15 @@ class LocalDatabase {
     );
   }
 
+  Future<void> deleteUser(String userId) async {
+    final db = await database;
+    await db.delete(
+      AppConstants.usersTable,
+      where: 'id = ?',
+      whereArgs: [userId],
+    );
+  }
+
   // Chat operations
   Future<void> insertChat(Chat chat) async {
     final db = await database;
@@ -249,6 +258,15 @@ class LocalDatabase {
       _chatToMap(chat),
       where: 'id = ?',
       whereArgs: [chat.id],
+    );
+  }
+
+  Future<void> deleteChat(String chatId) async {
+    final db = await database;
+    await db.delete(
+      AppConstants.chatsTable,
+      where: 'id = ?',
+      whereArgs: [chatId],
     );
   }
 
@@ -358,6 +376,15 @@ class LocalDatabase {
       _callToMap(call),
       where: 'id = ?',
       whereArgs: [call.id],
+    );
+  }
+
+  Future<void> deleteCall(String callId) async {
+    final db = await database;
+    await db.delete(
+      AppConstants.callsTable,
+      where: 'id = ?',
+      whereArgs: [callId],
     );
   }
 
@@ -580,6 +607,256 @@ class LocalDatabase {
       isVideoEnabled: map['isVideoEnabled'] == 1,
       isAudioEnabled: map['isAudioEnabled'] == 1,
       createdAt: DateTime.fromMillisecondsSinceEpoch(map['createdAt']),
+    );
+  }
+
+  // User operations
+  Future<void> saveUser(UserModel user) async {
+    final userMap = user.toMap();
+    final db = await database;
+    await db.insert(
+      AppConstants.usersTable,
+      userMap,
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<UserModel?> getUserById(String userId) async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      AppConstants.usersTable,
+      where: 'id = ?',
+      whereArgs: [userId],
+    );
+
+    if (maps.isNotEmpty) {
+      return UserModel.fromMap(maps.first);
+    }
+    return null;
+  }
+
+  Future<List<UserModel>> getAllUsers() async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      AppConstants.usersTable,
+    );
+    return maps.map((map) => UserModel.fromMap(map)).toList();
+  }
+
+  Future<void> updateUser(UserModel user) async {
+    final db = await database;
+    await db.update(
+      AppConstants.usersTable,
+      user.toMap(),
+      where: 'id = ?',
+      whereArgs: [user.id],
+    );
+  }
+
+  // Chat operations
+  Future<void> saveChat(ChatModel chat) async {
+    final chatMap = chat.toMap();
+    final db = await database;
+    await db.insert(
+      AppConstants.chatsTable,
+      chatMap,
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<ChatModel?> getChatById(String chatId) async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      AppConstants.chatsTable,
+      where: 'id = ?',
+      whereArgs: [chatId],
+    );
+
+    if (maps.isNotEmpty) {
+      return ChatModel.fromMap(maps.first);
+    }
+    return null;
+  }
+
+  Future<List<ChatModel>> getAllChats() async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      AppConstants.chatsTable,
+    );
+    return maps.map((map) => ChatModel.fromMap(map)).toList();
+  }
+
+  Future<void> updateChat(ChatModel chat) async {
+    final db = await database;
+    await db.update(
+      AppConstants.chatsTable,
+      chat.toMap(),
+      where: 'id = ?',
+      whereArgs: [chat.id],
+    );
+  }
+
+  Future<void> deleteChat(String chatId) async {
+    final db = await database;
+    await db.delete(
+      AppConstants.chatsTable,
+      where: 'id = ?',
+      whereArgs: [chatId],
+    );
+  }
+
+  // Message operations
+  Future<void> saveMessage(MessageModel message) async {
+    final messageMap = message.toMap();
+    final db = await database;
+    await db.insert(
+      AppConstants.messagesTable,
+      messageMap,
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<MessageModel?> getMessageById(String messageId) async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      AppConstants.messagesTable,
+      where: 'id = ?',
+      whereArgs: [messageId],
+    );
+
+    if (maps.isNotEmpty) {
+      return MessageModel.fromMap(maps.first);
+    }
+    return null;
+  }
+
+  Future<List<MessageModel>> getMessagesByChatId(String chatId) async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      AppConstants.messagesTable,
+      where: 'chatId = ?',
+      whereArgs: [chatId],
+      orderBy: 'timestamp DESC',
+    );
+    return maps.map((map) => MessageModel.fromMap(map)).toList();
+  }
+
+  Future<void> updateMessage(MessageModel message) async {
+    final db = await database;
+    await db.update(
+      AppConstants.messagesTable,
+      message.toMap(),
+      where: 'id = ?',
+      whereArgs: [message.id],
+    );
+  }
+
+  Future<void> deleteMessage(String messageId) async {
+    final db = await database;
+    await db.delete(
+      AppConstants.messagesTable,
+      where: 'id = ?',
+      whereArgs: [messageId],
+    );
+  }
+
+  // Call operations
+  Future<void> saveCall(CallModel call) async {
+    final callMap = call.toMap();
+    final db = await database;
+    await db.insert(
+      AppConstants.callsTable,
+      callMap,
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<CallModel?> getCallById(String callId) async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      AppConstants.callsTable,
+      where: 'id = ?',
+      whereArgs: [callId],
+    );
+
+    if (maps.isNotEmpty) {
+      return CallModel.fromMap(maps.first);
+    }
+    return null;
+  }
+
+  Future<List<CallModel>> getAllCalls() async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      AppConstants.callsTable,
+    );
+    return maps.map((map) => CallModel.fromMap(map)).toList();
+  }
+
+  Future<void> updateCall(CallModel call) async {
+    final db = await database;
+    await db.update(
+      AppConstants.callsTable,
+      call.toMap(),
+      where: 'id = ?',
+      whereArgs: [call.id],
+    );
+  }
+
+  Future<void> deleteCall(String callId) async {
+    final db = await database;
+    await db.delete(
+      AppConstants.callsTable,
+      where: 'id = ?',
+      whereArgs: [callId],
+    );
+  }
+
+  // Pending message operations for offline sync
+  Future<void> savePendingMessage(MessageModel message) async {
+    final messageMap = message.toMap();
+    messageMap['isPending'] = 1;
+    final db = await database;
+    await db.insert(
+      AppConstants.messagesTable,
+      messageMap,
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<List<MessageModel>> getPendingMessages() async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      AppConstants.messagesTable,
+      where: 'isPending = 1',
+    );
+    return maps.map((map) => MessageModel.fromMap(map)).toList();
+  }
+
+  Future<void> updatePendingMessageStatus(String messageId, String status) async {
+    final db = await database;
+    await db.update(
+      AppConstants.messagesTable,
+      {'status': status},
+      where: 'id = ?',
+      whereArgs: [messageId],
+    );
+  }
+
+  Future<void> deletePendingMessage(String messageId) async {
+    final db = await database;
+    await db.delete(
+      AppConstants.messagesTable,
+      where: 'id = ?',
+      whereArgs: [messageId],
+    );
+  }
+
+  Future<void> incrementRetryCount(String messageId) async {
+    final db = await database;
+    await db.rawUpdate(
+      'UPDATE ${AppConstants.messagesTable} SET retryCount = retryCount + 1 WHERE id = ?',
+      [messageId],
     );
   }
 }

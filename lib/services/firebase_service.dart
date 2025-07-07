@@ -4,6 +4,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import '../models/user_model.dart';
 import '../models/chat_model.dart';
 import '../models/message_model.dart';
+import 'package:flutter/foundation.dart';
 
 class FirebaseService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -469,6 +470,31 @@ class FirebaseService {
     } catch (e) {
       print('Error checking if chat exists: $e');
       return false;
+    }
+  }
+
+  // Get user profile from Firestore
+  Future<UserModel?> getUserProfile(String userId) async {
+    try {
+      final doc = await _firestore.collection('users').doc(userId).get();
+      if (doc.exists) {
+        return UserModel.fromMap(doc.data()!);
+      }
+      return null;
+    } catch (e) {
+      debugPrint('Error getting user profile: $e');
+      return null;
+    }
+  }
+
+  // Initialize Firestore
+  Future<void> initializeFirestore() async {
+    try {
+      // Enable offline persistence
+      await _firestore.enablePersistence();
+      debugPrint('🔥 Firestore initialized with offline persistence');
+    } catch (e) {
+      debugPrint('Error initializing Firestore: $e');
     }
   }
 }
