@@ -203,4 +203,9 @@ class ChatModel {
       typingUsers: typingUsers ?? this.typingUsers,
     );
   }
+
+  @override
+  String toString() {
+    return 'ChatModel(id: $id, participants: $participants)';
+  }
 } 

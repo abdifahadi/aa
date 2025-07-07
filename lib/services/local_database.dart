@@ -217,7 +217,7 @@ class LocalDatabase {
   }
 
   // Chat operations
-  Future<void> insertChat(Chat chat) async {
+  Future<void> insertChat(ChatModel chat) async {
     final db = await database;
     await db.insert(
       AppConstants.chatsTable,
@@ -226,7 +226,7 @@ class LocalDatabase {
     );
   }
 
-  Future<Chat?> getChat(String chatId) async {
+  Future<ChatModel?> getChat(String chatId) async {
     final db = await database;
     final List<Map<String, dynamic>> maps = await db.query(
       AppConstants.chatsTable,
@@ -240,7 +240,7 @@ class LocalDatabase {
     return null;
   }
 
-  Future<List<Chat>> getAllChats() async {
+  Future<List<ChatModel>> getAllChats() async {
     final db = await database;
     final List<Map<String, dynamic>> maps = await db.query(
       AppConstants.chatsTable,
@@ -251,7 +251,7 @@ class LocalDatabase {
     return List.generate(maps.length, (i) => _mapToChat(maps[i]));
   }
 
-  Future<void> updateChat(Chat chat) async {
+  Future<void> updateChat(ChatModel chat) async {
     final db = await database;
     await db.update(
       AppConstants.chatsTable,
@@ -271,7 +271,7 @@ class LocalDatabase {
   }
 
   // Message operations
-  Future<void> insertMessage(Message message) async {
+  Future<void> insertMessage(MessageModel message) async {
     final db = await database;
     await db.insert(
       AppConstants.messagesTable,
@@ -280,7 +280,7 @@ class LocalDatabase {
     );
   }
 
-  Future<List<Message>> getMessages(String chatId, {int? limit, int? offset}) async {
+  Future<List<MessageModel>> getMessages(String chatId, {int? limit, int? offset}) async {
     final db = await database;
     final List<Map<String, dynamic>> maps = await db.query(
       AppConstants.messagesTable,
@@ -294,7 +294,7 @@ class LocalDatabase {
     return List.generate(maps.length, (i) => _mapToMessage(maps[i]));
   }
 
-  Future<Message?> getMessage(String messageId) async {
+  Future<MessageModel?> getMessage(String messageId) async {
     final db = await database;
     final List<Map<String, dynamic>> maps = await db.query(
       AppConstants.messagesTable,
@@ -308,7 +308,7 @@ class LocalDatabase {
     return null;
   }
 
-  Future<void> updateMessage(Message message) async {
+  Future<void> updateMessage(MessageModel message) async {
     final db = await database;
     await db.update(
       AppConstants.messagesTable,
@@ -389,7 +389,7 @@ class LocalDatabase {
   }
 
   // Sync operations
-  Future<List<Message>> getUnsyncedMessages() async {
+  Future<List<MessageModel>> getUnsyncedMessages() async {
     final db = await database;
     final List<Map<String, dynamic>> maps = await db.query(
       AppConstants.messagesTable,
@@ -453,6 +453,100 @@ class LocalDatabase {
     return pageCount * pageSize;
   }
 
+  // Pending messages methods for offline sync
+  Future<List<Map<String, dynamic>>> getPendingMessages() async {
+    final db = await database;
+    return await db.query(
+      'pending_messages',
+      where: 'status = ? OR status = ?',
+      whereArgs: ['pending', 'error'],
+      orderBy: 'created_at ASC',
+    );
+  }
+
+  Future<String> savePendingMessage({
+    required String chatId,
+    required String senderId,
+    required String senderEmail,
+    required String senderName,
+    required String content,
+    required MessageType type,
+    String? mediaUrl,
+    String? mediaName,
+    int? mediaSize,
+    String? localFilePath,
+    MessageStatus status = MessageStatus.sent,
+  }) async {
+    final db = await database;
+    final id = DateTime.now().millisecondsSinceEpoch.toString();
+    
+    // Create pending_messages table if it doesn't exist
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS pending_messages (
+        id TEXT PRIMARY KEY,
+        chatId TEXT NOT NULL,
+        senderId TEXT NOT NULL,
+        senderEmail TEXT NOT NULL,
+        senderName TEXT NOT NULL,
+        content TEXT NOT NULL,
+        type TEXT NOT NULL,
+        mediaUrl TEXT,
+        mediaName TEXT,
+        mediaSize INTEGER,
+        localFilePath TEXT,
+        status TEXT NOT NULL DEFAULT 'pending',
+        retryCount INTEGER NOT NULL DEFAULT 0,
+        created_at INTEGER NOT NULL
+      )
+    ''');
+    
+    await db.insert('pending_messages', {
+      'id': id,
+      'chatId': chatId,
+      'senderId': senderId,
+      'senderEmail': senderEmail,
+      'senderName': senderName,
+      'content': content,
+      'type': type.toString().split('.').last,
+      'mediaUrl': mediaUrl,
+      'mediaName': mediaName,
+      'mediaSize': mediaSize,
+      'localFilePath': localFilePath,
+      'status': 'pending',
+      'retryCount': 0,
+      'created_at': DateTime.now().millisecondsSinceEpoch,
+    });
+    
+    return id;
+  }
+
+  Future<void> updatePendingMessageStatus(String messageId, String status) async {
+    final db = await database;
+    await db.update(
+      'pending_messages',
+      {'status': status},
+      where: 'id = ?',
+      whereArgs: [messageId],
+    );
+  }
+
+  Future<void> incrementRetryCount(String messageId) async {
+    final db = await database;
+    await db.rawUpdate(
+      'UPDATE pending_messages SET retryCount = retryCount + 1 WHERE id = ?',
+      [messageId],
+    );
+  }
+
+  Future<void> deletePendingMessage(String messageId) async {
+    final db = await database;
+    await db.delete(
+      'pending_messages',
+      where: 'id = ?',
+      whereArgs: [messageId],
+    );
+  }
+
   // Mapping methods
   Map<String, dynamic> _userToMap(User user) {
     return {
@@ -487,17 +581,17 @@ class LocalDatabase {
     );
   }
 
-  Map<String, dynamic> _chatToMap(Chat chat) {
+  Map<String, dynamic> _chatToMap(ChatModel chat) {
     return {
       'id': chat.id,
-      'type': chat.type.index,
-      'name': chat.name,
-      'description': chat.description,
-      'imageUrl': chat.imageUrl,
-      'participantIds': jsonEncode(chat.participantIds),
-      'createdBy': chat.createdBy,
-      'lastMessage': chat.lastMessage,
-      'lastMessageTime': chat.lastMessageTime?.millisecondsSinceEpoch,
+      'type': 0, // Direct chat
+      'name': null,
+      'description': null,
+      'imageUrl': null,
+      'participantIds': jsonEncode(chat.participants),
+      'createdBy': chat.participants.isNotEmpty ? chat.participants.first : '',
+      'lastMessage': chat.lastMessageText,
+      'lastMessageTime': chat.lastMessageAt?.millisecondsSinceEpoch,
       'lastMessageSenderId': chat.lastMessageSenderId,
       'unreadCount': chat.unreadCount,
       'isArchived': chat.isArchived ? 1 : 0,
@@ -508,18 +602,15 @@ class LocalDatabase {
     };
   }
 
-  Chat _mapToChat(Map<String, dynamic> map) {
-    return Chat(
+    ChatModel _mapToChat(Map<String, dynamic> map) {
+    return ChatModel(
       id: map['id'],
-      type: ChatType.values[map['type']],
-      name: map['name'],
-      description: map['description'],
-      imageUrl: map['imageUrl'],
-      participantIds: List<String>.from(jsonDecode(map['participantIds'])),
-      createdBy: map['createdBy'],
-      lastMessage: map['lastMessage'],
-      lastMessageTime: map['lastMessageTime'] != null 
-          ? DateTime.fromMillisecondsSinceEpoch(map['lastMessageTime']) 
+      participants: List<String>.from(jsonDecode(map['participantIds'])),
+      participantNames: {},
+      participantPhotos: {},
+      createdAt: DateTime.fromMillisecondsSinceEpoch(map['createdAt']),
+      lastMessageAt: map['lastMessageTime'] != null 
+          ? DateTime.fromMillisecondsSinceEpoch(map['lastMessageTime'])
           : null,
       lastMessageSenderId: map['lastMessageSenderId'],
       unreadCount: map['unreadCount'],

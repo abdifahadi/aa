@@ -61,6 +61,111 @@ class CallService {
     return _generateTokenWithSupabase(channelName, uid);
   }
 
+  // Test Agora connection
+  Future<void> testAgoraConnection() async {
+    try {
+      debugPrint('🧪 Testing Agora connection...');
+      final engine = await initializeAgoraEngine();
+      debugPrint('✅ Agora engine initialized successfully for testing');
+      
+      // Test token generation
+      final testChannelId = 'test-channel-${DateTime.now().millisecondsSinceEpoch}';
+      final testUid = 'test-uid';
+      
+      final token = await _generateTokenWithSupabase(testChannelId, testUid);
+      debugPrint('✅ Token generated successfully for testing');
+      
+      debugPrint('✅ Agora connection test completed successfully');
+    } catch (e) {
+      debugPrint('❌ Agora connection test failed: $e');
+      rethrow;
+    }
+  }
+
+  // Answer call
+  Future<void> answerCall(String callId) async {
+    try {
+      debugPrint('📞 Answering call: $callId');
+      await _updateCallStatus(callId, CallStatus.accepted);
+    } catch (e) {
+      debugPrint('❌ Error answering call: $e');
+      rethrow;
+    }
+  }
+
+  // Update call status
+  Future<void> updateCallStatus(String callId, CallStatus status) async {
+    await _updateCallStatus(callId, status);
+  }
+
+  // Get call by ID
+  Stream<CallModel?> getCallById(String callId) {
+    return _callsCollection.doc(callId).snapshots().map((doc) {
+      if (doc.exists) {
+        return CallModel.fromFirestore(doc);
+      }
+      return null;
+    });
+  }
+
+  // Register event handler
+  void registerEventHandler({
+    Function(RtcConnection, int, int)? onUserJoined,
+    Function(RtcConnection, int, UserOfflineReasonType)? onUserOffline,
+    Function(VideoSourceType, LocalVideoStreamState, dynamic)? onLocalVideoStateChanged,
+    Function(RtcConnection, int, RemoteVideoState, RemoteVideoStateReason, int)? onRemoteVideoStateChanged,
+    Function(RtcConnection, int, RemoteAudioState, RemoteAudioStateReason, int)? onRemoteAudioStateChanged,
+    Function(RtcConnection, List<AudioVolumeInfo>, int, int)? onAudioVolumeIndication,
+    Function(RtcConnection, ConnectionStateType, ConnectionChangedReasonType)? onConnectionStateChanged,
+  }) {
+    if (_engine == null) {
+      debugPrint('❌ Cannot register event handler: engine is null');
+      return;
+    }
+
+    _engine!.registerEventHandler(
+      RtcEngineEventHandler(
+        onJoinChannelSuccess: (RtcConnection connection, int elapsed) {
+          debugPrint('✅ Successfully joined channel: ${connection.channelId}');
+        },
+        onUserJoined: onUserJoined,
+        onUserOffline: onUserOffline,
+        onLocalVideoStateChanged: onLocalVideoStateChanged,
+        onRemoteVideoStateChanged: onRemoteVideoStateChanged,
+        onRemoteAudioStateChanged: onRemoteAudioStateChanged,
+        onAudioVolumeIndication: onAudioVolumeIndication,
+        onConnectionStateChanged: onConnectionStateChanged,
+        onError: (ErrorCodeType err, String msg) {
+          debugPrint('❌ Agora error: $err - $msg');
+        },
+      ),
+    );
+  }
+
+  // Enable audio
+  Future<void> enableAudio() async {
+    if (_engine != null) {
+      await _engine!.enableAudio();
+      debugPrint('🔊 Audio enabled');
+    }
+  }
+
+  // Mute local audio
+  Future<void> muteLocalAudio(bool mute) async {
+    if (_engine != null) {
+      await _engine!.muteLocalAudioStream(mute);
+      debugPrint('🔇 Local audio ${mute ? "muted" : "unmuted"}');
+    }
+  }
+
+  // Leave channel
+  Future<void> leaveChannel() async {
+    if (_engine != null) {
+      await _engine!.leaveChannel();
+      debugPrint('📞 Left Agora channel');
+    }
+  }
+
   // Generate numeric UID from string for Agora (public method)
   int generateNumericUidFromString(String uid, {bool isReceiver = false}) {
     if (uid.isEmpty) return 1;

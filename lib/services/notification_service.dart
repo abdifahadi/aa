@@ -7,6 +7,9 @@ import 'package:flutter/material.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
+import '../utils/constants.dart';
 
 import '../models/call_model.dart';
 import '../screens/incoming_call_screen.dart';
@@ -38,170 +41,295 @@ class NotificationService {
     debugPrint('NotificationService: Using shared navigator key');
   }
 
+  bool _isInitialized = false;
+  String? _fcmToken;
+
+  // Initialize the notification service
   Future<void> initialize() async {
+    if (_isInitialized) return;
+
     try {
-      // Request notification permissions
-      await _requestNotificationPermissions();
+      // Request permission for notifications
+      final permission = await _firebaseMessaging.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+        carPlay: false,
+        criticalAlert: false,
+        provisional: false,
+        announcement: false,
+      );
+
+      if (permission.authorizationStatus == AuthorizationStatus.authorized) {
+        debugPrint('✅ Notification permission granted');
+      } else {
+        debugPrint('❌ Notification permission denied');
+        return;
+      }
 
       // Initialize local notifications
       await _initializeLocalNotifications();
 
-      // Setup Firebase Messaging
-      await _setupFirebaseMessaging();
+      // Get FCM token
+      _fcmToken = await _firebaseMessaging.getToken();
+      debugPrint('📱 FCM Token: $_fcmToken');
 
-      debugPrint('NotificationService: Initialization completed successfully');
+      // Listen for token refresh
+      _firebaseMessaging.onTokenRefresh.listen((token) {
+        _fcmToken = token;
+        debugPrint('🔄 FCM Token refreshed: $token');
+      });
+
+      // Handle foreground messages
+      FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
+
+      // Handle background messages
+      FirebaseMessaging.onBackgroundMessage(_handleBackgroundMessage);
+
+      // Handle notification taps when app is in background/terminated
+      FirebaseMessaging.onMessageOpenedApp.listen(_handleNotificationTap);
+
+      _isInitialized = true;
+      debugPrint('✅ NotificationService initialized successfully');
+
     } catch (e) {
-      debugPrint('NotificationService: Initialization failed: $e');
+      debugPrint('❌ Error initializing NotificationService: $e');
     }
   }
 
-  Future<void> _requestNotificationPermissions() async {
-    // Request permission for notifications
-    NotificationSettings settings = await _firebaseMessaging.requestPermission(
-      alert: true,
-      announcement: false,
-      badge: true,
-      carPlay: false,
-      criticalAlert: false,
-      provisional: false,
-      sound: true,
-    );
-
-    debugPrint('User granted permission: ${settings.authorizationStatus}');
-
-    // Request other permissions
-    await Permission.notification.request();
-    await Permission.microphone.request();
-    await Permission.camera.request();
-  }
-
-  Future<void> _setupFirebaseMessaging() async {
-    // Handle foreground messages
-    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      debugPrint('Got a message whilst in the foreground!');
-      debugPrint('Message data: ${message.data}');
-
-      if (message.notification != null) {
-        debugPrint('Message also contained a notification: ${message.notification}');
-
-        if (message.data['type'] == 'call') {
-          // Handle incoming call
-          _handleCallNotificationData(message.data);
-        } else {
-          // Handle regular message notification
-          _showLocalNotification(
-            title: message.notification?.title ?? 'New Message',
-            body: message.notification?.body ?? '',
-            payload: message.data['chatId'] ?? '',
-          );
-        }
-      }
-    });
-
-    // Handle background messages
-    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-
-    // Handle notifications opened app from terminated state
-    FirebaseMessaging.instance
-        .getInitialMessage()
-        .then((RemoteMessage? message) {
-      if (message != null && message.data['type'] == 'call') {
-        _handleCallNotification(message);
-      }
-    });
-
-    // Handle notification when app is in background but opened
-    FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-      if (message.data['type'] == 'call') {
-        _handleCallNotification(message);
-      }
-    });
-
-    // Listen for incoming calls from Firestore
-    _setupBackgroundCallListener();
-  }
-
-  void _handleCallNotificationData(Map<String, dynamic> data) {
-    final String callId = data['callId'] ?? '';
-    final String callerId = data['callerId'] ?? '';
-    final String callerName = data['callerName'] ?? 'Unknown';
-    final String callType = data['callType'] ?? 'audio';
-
-    // Create a CallModel from the message data
-    final CallModel call = CallModel(
-      id: callId,
-      callerId: callerId,
-      callerName: callerName,
-      callerPhotoUrl: data['callerPhotoUrl'] ?? '',
-      receiverId: _auth.currentUser?.uid ?? '',
-      receiverName: data['receiverName'] ?? '',
-      receiverPhotoUrl: data['receiverPhotoUrl'] ?? '',
-      channelId: data['channelId'] ?? '',
-      token: data['token'] ?? '',
-      type: callType == 'video' ? CallType.video : CallType.audio,
-      status: CallStatus.ringing,
-      createdAt: DateTime.now(),
-      numericUid: int.tryParse(data['numericUid'] ?? '0') ?? 0,
-      participants: [callerId, _auth.currentUser?.uid ?? ''],
-    );
-
-    showIncomingCallNotification(call);
-  }
-
   Future<void> _initializeLocalNotifications() async {
-    debugPrint('Initializing local notifications');
-
-    // Initialize settings for Android
-    const AndroidInitializationSettings initializationSettingsAndroid =
-        AndroidInitializationSettings('@mipmap/ic_launcher');
-
-    // Initialize settings for iOS
-    const DarwinInitializationSettings initializationSettingsIOS =
-        DarwinInitializationSettings(
+    const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const iosSettings = DarwinInitializationSettings(
       requestAlertPermission: true,
       requestBadgePermission: true,
       requestSoundPermission: true,
     );
 
-    // Initialize settings for all platforms
-    const InitializationSettings initializationSettings =
-        InitializationSettings(
-      android: initializationSettingsAndroid,
-      iOS: initializationSettingsIOS,
+    const initializationSettings = InitializationSettings(
+      android: androidSettings,
+      iOS: iosSettings,
     );
 
-    // Initialize the plugin
     await _flutterLocalNotificationsPlugin.initialize(
       initializationSettings,
-      onDidReceiveNotificationResponse: _onNotificationTapped,
+      onDidReceiveNotificationResponse: _onLocalNotificationTap,
     );
 
-    debugPrint('Local notifications initialized successfully');
+    // Create notification channels for Android
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      await _createNotificationChannels();
+    }
   }
 
-  void _onNotificationTapped(NotificationResponse response) {
-    debugPrint('Notification tapped: ${response.payload}');
+  Future<void> _createNotificationChannels() async {
+    const messagesChannel = AndroidNotificationChannel(
+      AppConstants.defaultNotificationChannelId,
+      AppConstants.defaultNotificationChannelName,
+      description: 'Notifications for new messages',
+      importance: Importance.high,
+      sound: RawResourceAndroidNotificationSound('notification_sound'),
+    );
 
-    // Parse the payload to get call information
-    if (response.payload != null) {
-      try {
-        final callId = response.payload!;
+    const callsChannel = AndroidNotificationChannel(
+      AppConstants.callNotificationChannelId,
+      AppConstants.callNotificationChannelName,
+      description: 'Notifications for incoming calls',
+      importance: Importance.max,
+      sound: RawResourceAndroidNotificationSound('ringtone'),
+    );
 
-        // Fetch call details from Firestore
-        _firestore.collection('calls').doc(callId).get().then((doc) {
-          if (doc.exists) {
-            final CallModel call = CallModel.fromFirestore(doc);
+    await _flutterLocalNotificationsPlugin
+        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+        ?.createNotificationChannel(messagesChannel);
 
-            // Only show incoming call if it's still ringing
-            if (call.status == CallStatus.ringing ||
-                call.status == CallStatus.dialing) {
-              showIncomingCallScreen(call);
-            }
-          }
-        });
-      } catch (e) {
-        debugPrint('Error handling notification tap: $e');
-      }
+    await _flutterLocalNotificationsPlugin
+        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+        ?.createNotificationChannel(callsChannel);
+  }
+
+  // Handle foreground messages
+  void _handleForegroundMessage(RemoteMessage message) {
+    debugPrint('📨 Foreground message received: ${message.messageId}');
+    
+    // Show local notification for foreground messages
+    _showLocalNotification(
+      title: message.notification?.title ?? 'New Message',
+      body: message.notification?.body ?? '',
+      payload: message.data.toString(),
+    );
+  }
+
+  // Handle background messages
+  static Future<void> _handleBackgroundMessage(RemoteMessage message) async {
+    debugPrint('📨 Background message received: ${message.messageId}');
+    // Handle background message processing here
+  }
+
+  // Handle notification tap
+  void _handleNotificationTap(RemoteMessage message) {
+    debugPrint('👆 Notification tapped: ${message.messageId}');
+    // Handle navigation based on notification data
+    _handleNotificationNavigation(message.data);
+  }
+
+  // Handle local notification tap
+  void _onLocalNotificationTap(NotificationResponse response) {
+    debugPrint('👆 Local notification tapped: ${response.payload}');
+    // Handle navigation based on payload
+  }
+
+  // Handle notification navigation
+  void _handleNotificationNavigation(Map<String, dynamic> data) {
+    final type = data['type'] as String?;
+    
+    switch (type) {
+      case 'message':
+        // Navigate to chat screen
+        debugPrint('Navigate to chat: ${data['chatId']}');
+        break;
+      case 'call':
+        // Navigate to call screen
+        debugPrint('Navigate to call: ${data['callId']}');
+        break;
+      default:
+        debugPrint('Unknown notification type: $type');
+    }
+  }
+
+  // Show local notification
+  Future<void> _showLocalNotification({
+    required String title,
+    required String body,
+    String? payload,
+    String channelId = AppConstants.defaultNotificationChannelId,
+  }) async {
+    const androidDetails = AndroidNotificationDetails(
+      AppConstants.defaultNotificationChannelId,
+      AppConstants.defaultNotificationChannelName,
+      importance: Importance.high,
+      priority: Priority.high,
+      icon: '@mipmap/ic_launcher',
+    );
+
+    const iosDetails = DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: true,
+      presentSound: true,
+    );
+
+    const notificationDetails = NotificationDetails(
+      android: androidDetails,
+      iOS: iosDetails,
+    );
+
+    await _flutterLocalNotificationsPlugin.show(
+      DateTime.now().millisecondsSinceEpoch.remainder(100000),
+      title,
+      body,
+      notificationDetails,
+      payload: payload,
+    );
+  }
+
+  // Send message notification
+  Future<void> sendMessageNotification({
+    required String title,
+    required String body,
+    required String chatId,
+    required String senderId,
+  }) async {
+    await _showLocalNotification(
+      title: title,
+      body: body,
+      payload: 'message:$chatId:$senderId',
+    );
+  }
+
+  // Send call notification
+  Future<void> sendCallNotification({
+    required String callerName,
+    required String callType,
+    required String callId,
+  }) async {
+    await _showLocalNotification(
+      title: 'Incoming $callType call',
+      body: 'From $callerName',
+      payload: 'call:$callId',
+      channelId: AppConstants.callNotificationChannelId,
+    );
+  }
+
+  // Play ringtone for incoming calls
+  Future<void> playRingtone() async {
+    try {
+      // This would typically use a plugin like just_audio to play ringtone
+      debugPrint('🔔 Playing ringtone...');
+      // Implementation would depend on your audio plugin choice
+    } catch (e) {
+      debugPrint('❌ Error playing ringtone: $e');
+    }
+  }
+
+  // Stop ringtone
+  Future<void> stopRingtone() async {
+    try {
+      debugPrint('🔕 Stopping ringtone...');
+      // Implementation would depend on your audio plugin choice
+    } catch (e) {
+      debugPrint('❌ Error stopping ringtone: $e');
+    }
+  }
+
+  // Show test notification
+  Future<void> showTestNotification() async {
+    await _showLocalNotification(
+      title: 'Test Notification',
+      body: 'This is a test notification from developer menu',
+      payload: 'test',
+    );
+  }
+
+  // Get FCM token
+  Future<String?> getFCMToken() async {
+    try {
+      _fcmToken ??= await _firebaseMessaging.getToken();
+      return _fcmToken;
+    } catch (e) {
+      debugPrint('❌ Error getting FCM token: $e');
+      return null;
+    }
+  }
+
+  // Subscribe to topic
+  Future<void> subscribeToTopic(String topic) async {
+    try {
+      await _firebaseMessaging.subscribeToTopic(topic);
+      debugPrint('✅ Subscribed to topic: $topic');
+    } catch (e) {
+      debugPrint('❌ Error subscribing to topic $topic: $e');
+    }
+  }
+
+  // Unsubscribe from topic
+  Future<void> unsubscribeFromTopic(String topic) async {
+    try {
+      await _firebaseMessaging.unsubscribeFromTopic(topic);
+      debugPrint('✅ Unsubscribed from topic: $topic');
+    } catch (e) {
+      debugPrint('❌ Error unsubscribing from topic $topic: $e');
+    }
+  }
+
+  // Clear all notifications
+  Future<void> clearAllNotifications() async {
+    await _flutterLocalNotificationsPlugin.cancelAll();
+  }
+
+  // Update badge count (iOS)
+  Future<void> updateBadgeCount(int count) async {
+    if (defaultTargetPlatform == TargetPlatform.iOS) {
+      await _firebaseMessaging.setAutoInitEnabled(true);
+      // Badge count is typically managed by the server or through a plugin
     }
   }
 
@@ -323,67 +451,6 @@ class NotificationService {
     );
   }
 
-  // Show general local notification
-  void _showLocalNotification({
-    required String title,
-    required String body,
-    String payload = '',
-  }) {
-    const AndroidNotificationDetails androidPlatformChannelSpecifics =
-        AndroidNotificationDetails(
-      'message_channel',
-      'Messages',
-      channelDescription: 'Notifications for messages',
-      importance: Importance.high,
-      priority: Priority.high,
-    );
-
-    const NotificationDetails platformChannelSpecifics =
-        NotificationDetails(android: androidPlatformChannelSpecifics);
-
-    _flutterLocalNotificationsPlugin.show(
-      DateTime.now().millisecondsSinceEpoch.remainder(100000),
-      title,
-      body,
-      platformChannelSpecifics,
-      payload: payload,
-    );
-  }
-
-  // Play ringtone (public method for manual triggering)
-  void playRingtone() async {
-    _playRingtone();
-  }
-
-  // Play ringtone (internal method)
-  void _playRingtone() async {
-    if (!_isRingtonePlaying) {
-      try {
-        _isRingtonePlaying = true;
-        // Using a default system sound, you can replace with custom ringtone
-        await _audioPlayer.play(AssetSource('sounds/ringtone.mp3'));
-        debugPrint('Playing ringtone');
-      } catch (e) {
-        debugPrint('Error playing ringtone: $e');
-        // Fallback to system sound
-        _isRingtonePlaying = false;
-      }
-    }
-  }
-
-  // Stop ringtone
-  void stopRingtone() async {
-    if (_isRingtonePlaying) {
-      try {
-        await _audioPlayer.stop();
-        _isRingtonePlaying = false;
-        debugPrint('Stopped ringtone');
-      } catch (e) {
-        debugPrint('Error stopping ringtone: $e');
-      }
-    }
-  }
-
   // Accept call
   Future<void> _acceptCall(CallModel call) async {
     debugPrint('Accepting call: ${call.id}');
@@ -426,37 +493,6 @@ class NotificationService {
       
     } catch (e) {
       debugPrint('Error declining call: $e');
-    }
-  }
-
-  // Get FCM token
-  Future<String?> getFCMToken() async {
-    try {
-      String? token = await _firebaseMessaging.getToken();
-      debugPrint('FCM Token: $token');
-      return token;
-    } catch (e) {
-      debugPrint('Error getting FCM token: $e');
-      return null;
-    }
-  }
-
-  // Update FCM token in Firestore
-  Future<void> updateFCMToken() async {
-    try {
-      final currentUser = _auth.currentUser;
-      if (currentUser == null) return;
-
-      final token = await getFCMToken();
-      if (token != null) {
-        await _firestore.collection('users').doc(currentUser.uid).update({
-          'fcmToken': token,
-          'lastTokenUpdate': FieldValue.serverTimestamp(),
-        });
-        debugPrint('FCM token updated in Firestore');
-      }
-    } catch (e) {
-      debugPrint('Error updating FCM token: $e');
     }
   }
 
