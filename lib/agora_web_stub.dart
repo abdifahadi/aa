@@ -162,7 +162,7 @@ class AgoraRtcEngineWebStub {
 
   // Web-specific helper methods
   static void showWebNotSupportedMessage() {
-    if (kIsWeb && html.window.console != null) {
+    if (kIsWeb) {
       html.window.console.warn('Agora RTC Engine features are not available on web platform. '
           'Please use the mobile app for full video calling functionality.');
     }
