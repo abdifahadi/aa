@@ -5,13 +5,14 @@ class AppConstants {
   static const String appVersion = '1.0.0';
   static const String appBuildNumber = '1';
 
-  // Firebase Configuration
+  // Firebase Configuration - Updated with Real Project Credentials
   static const String firebaseProjectId = 'abdiwavee';
   static const String firebaseApiKey = 'AIzaSyB5Ufc0N4WMuapF6z_tBesYDXQVZADs0RE';
   static const String firebaseAuthDomain = 'abdiwavee.firebaseapp.com';
   static const String firebaseStorageBucket = 'abdiwavee.firebasestorage.app';
   static const String firebaseMessagingSenderId = '315443508332';
   static const String firebaseAppId = '1:315443508332:web:a3a3b5e0cb1bf6aea69449';
+  static const String firebaseMeasurementId = 'G-92163MQQL8';
 
   // Agora Configuration
   static const String agoraAppId = 'b7487b8a48da4f89a4285c92e454a96f';

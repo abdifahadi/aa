@@ -44,38 +44,38 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'your-web-api-key',
-    appId: 'your-web-app-id',
-    messagingSenderId: 'your-sender-id',
-    projectId: 'your-project-id',
-    authDomain: 'your-project-id.firebaseapp.com',
-    storageBucket: 'your-project-id.appspot.com',
-    measurementId: 'your-measurement-id',
+    apiKey: 'AIzaSyB5Ufc0N4WMuapF6z_tBesYDXQVZADs0RE',
+    appId: '1:315443508332:web:a3a3b5e0cb1bf6aea69449',
+    messagingSenderId: '315443508332',
+    projectId: 'abdiwavee',
+    authDomain: 'abdiwavee.firebaseapp.com',
+    storageBucket: 'abdiwavee.firebasestorage.app',
+    measurementId: 'G-92163MQQL8',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'your-android-api-key',
-    appId: 'your-android-app-id',
-    messagingSenderId: 'your-sender-id',
-    projectId: 'your-project-id',
-    storageBucket: 'your-project-id.appspot.com',
+    apiKey: 'AIzaSyA6oFMKUm0QqlL6exZeBxc6YyikOPOTQpc',
+    appId: '1:315443508332:android:5a8cf735c7dd34d6a69449',
+    messagingSenderId: '315443508332',
+    projectId: 'abdiwavee',
+    storageBucket: 'abdiwavee.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'your-ios-api-key',
-    appId: 'your-ios-app-id',
-    messagingSenderId: 'your-sender-id',
-    projectId: 'your-project-id',
-    storageBucket: 'your-project-id.appspot.com',
-    iosBundleId: 'com.example.abdiWave',
+    apiKey: 'AIzaSyCBqiDkq1ZuaFNovM6MGOBNBjvj0jjxBB8',
+    appId: '1:315443508332:ios:e4e9004ec7f2e04aa69449',
+    messagingSenderId: '315443508332',
+    projectId: 'abdiwavee',
+    storageBucket: 'abdiwavee.firebasestorage.app',
+    iosBundleId: 'abdiwave',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
-    apiKey: 'your-ios-api-key',
-    appId: 'your-ios-app-id',
-    messagingSenderId: 'your-sender-id',
-    projectId: 'your-project-id',
-    storageBucket: 'your-project-id.appspot.com',
-    iosBundleId: 'com.example.abdiWave',
+    apiKey: 'AIzaSyCBqiDkq1ZuaFNovM6MGOBNBjvj0jjxBB8',
+    appId: '1:315443508332:ios:e4e9004ec7f2e04aa69449',
+    messagingSenderId: '315443508332',
+    projectId: 'abdiwavee',
+    storageBucket: 'abdiwavee.firebasestorage.app',
+    iosBundleId: 'abdiwave',
   );
 }
