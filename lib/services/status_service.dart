@@ -42,7 +42,7 @@ class StatusService {
   // Update user status
   Future<void> updateUserStatus(String uid, UserStatus status) async {
     try {
-      await _firebaseService.updateUserStatus(uid, status);
+      await _firebaseService.updateUserStatus(status);
     } catch (e) {
       print("Error updating status: $e");
     }
