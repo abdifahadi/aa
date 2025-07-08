@@ -16,6 +16,8 @@ import '../services/local_database.dart';
 import '../utils/constants.dart';
 import '../components/message_input.dart';
 import 'call_handler.dart';
+import 'chat/chat_list_screen.dart';
+import 'incoming_call_screen.dart';
 
 class ChatApp extends StatefulWidget {
   const ChatApp({Key? key}) : super(key: key);
@@ -274,6 +276,24 @@ class _ChatAppState extends State<ChatApp> with WidgetsBindingObserver {
     print("Checking user profile...");
   }
 
+  // Sign out functionality
+  Future<void> _signOut() async {
+    try {
+      await _firebaseService.signOut();
+      await _localDb.clearUserData();
+      setState(() {
+        _currentUser = null;
+        _isAuthenticated = false;
+        _currentScreen = AppScreen.signIn;
+      });
+    } catch (e) {
+      print("Error signing out: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('সাইন আউট করতে সমস্যা হয়েছে: $e')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
@@ -285,96 +305,356 @@ class _ChatAppState extends State<ChatApp> with WidgetsBindingObserver {
     }
 
     if (!_isAuthenticated) {
-      return const Scaffold(
+      return Scaffold(
         body: Center(
-          child: Text('Please sign in to continue'),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text(
+                'অনুগ্রহ করে সাইন ইন করুন',
+                style: TextStyle(fontSize: 18),
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: () {
+                  // Navigate to sign in screen or show sign in dialog
+                  _showSignInOptions();
+                },
+                child: const Text('সাইন ইন'),
+              ),
+            ],
+          ),
         ),
       );
     }
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Chat App'),
+        title: Text(_getAppBarTitle()),
+        backgroundColor: Theme.of(context).primaryColor,
+        foregroundColor: Colors.white,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.search),
-            onPressed: _toggleSearch,
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          if (_isSearchVisible)
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: TextField(
-                controller: _searchController,
-                focusNode: _searchFocusNode,
-                decoration: const InputDecoration(
-                  hintText: 'Search...',
-                  border: OutlineInputBorder(),
-                ),
-                onChanged: (value) {
-                  setState(() {
-                    _searchQuery = value;
-                  });
-                },
-              ),
+          if (_currentIndex == 0)
+            IconButton(
+              icon: const Icon(Icons.search),
+              onPressed: _toggleSearch,
             ),
-          Expanded(
-            child: _buildCurrentScreen(),
+          PopupMenuButton<String>(
+            onSelected: (value) {
+              switch (value) {
+                case 'profile':
+                  _showProfile();
+                  break;
+                case 'settings':
+                  _showSettings();
+                  break;
+                case 'signout':
+                  _signOut();
+                  break;
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'profile',
+                child: Text('প্রোফাইল'),
+              ),
+              const PopupMenuItem(
+                value: 'settings',
+                child: Text('সেটিংস'),
+              ),
+              const PopupMenuItem(
+                value: 'signout',
+                child: Text('সাইন আউট'),
+              ),
+            ],
           ),
         ],
       ),
+      body: _buildCurrentScreen(),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         onTap: _onNavItemTapped,
+        type: BottomNavigationBarType.fixed,
         items: const [
           BottomNavigationBarItem(
             icon: Icon(Icons.chat),
-            label: 'Chats',
+            label: 'চ্যাট',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.people),
-            label: 'Contacts',
+            label: 'যোগাযোগ',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.call),
+            label: 'কল',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.settings),
-            label: 'Settings',
+            label: 'সেটিংস',
           ),
         ],
       ),
     );
   }
 
-  Widget _buildCurrentScreen() {
+  String _getAppBarTitle() {
     switch (_currentIndex) {
       case 0:
-        return _buildChatsScreen();
+        return 'চ্যাট';
       case 1:
-        return _buildContactsScreen();
+        return 'যোগাযোগ';
       case 2:
-        return _buildSettingsScreen();
+        return 'কল';
+      case 3:
+        return 'সেটিংস';
       default:
-        return _buildChatsScreen();
+        return 'চ্যাট অ্যাপ';
     }
   }
 
-  Widget _buildChatsScreen() {
-    return const Center(
-      child: Text('Chats Screen'),
-    );
+  Widget _buildCurrentScreen() {
+    if (_currentUser == null) {
+      return const Center(
+        child: Text('ব্যবহারকারীর তথ্য লোড হচ্ছে...'),
+      );
+    }
+
+    switch (_currentIndex) {
+      case 0:
+        return ChatListScreen(
+          currentUser: _currentUser!,
+          firebaseService: _firebaseService,
+        );
+      case 1:
+        return _buildContactsScreen();
+      case 2:
+        return _buildCallsScreen();
+      case 3:
+        return _buildSettingsScreen();
+      default:
+        return ChatListScreen(
+          currentUser: _currentUser!,
+          firebaseService: _firebaseService,
+        );
+    }
   }
 
   Widget _buildContactsScreen() {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('users')
+          .where(FieldPath.documentId, isNotEqualTo: _currentUser!.uid)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return const Center(
+            child: Text('কোনো যোগাযোগ পাওয়া যায়নি'),
+          );
+        }
+
+        final users = snapshot.data!.docs
+            .map((doc) => UserModel.fromFirestore(doc))
+            .toList();
+
+        return ListView.builder(
+          itemCount: users.length,
+          itemBuilder: (context, index) {
+            final user = users[index];
+            return ListTile(
+              leading: CircleAvatar(
+                backgroundImage: user.photoUrl != null
+                    ? NetworkImage(user.photoUrl!)
+                    : null,
+                child: user.photoUrl == null
+                    ? const Icon(Icons.person)
+                    : null,
+              ),
+              title: Text(user.name),
+              subtitle: Text(user.email),
+              trailing: IconButton(
+                icon: const Icon(Icons.chat),
+                onPressed: () => _startChatWithUser(user),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildCallsScreen() {
     return const Center(
-      child: Text('Contacts Screen'),
+      child: Text('কল ইতিহাস এখানে দেখানো হবে'),
     );
   }
 
   Widget _buildSettingsScreen() {
-    return const Center(
-      child: Text('Settings Screen'),
+    return ListView(
+      children: [
+        if (_currentUser != null) ...[
+          UserAccountsDrawerHeader(
+            accountName: Text(_currentUser!.name),
+            accountEmail: Text(_currentUser!.email),
+            currentAccountPicture: CircleAvatar(
+              backgroundImage: _currentUser!.photoUrl != null
+                  ? NetworkImage(_currentUser!.photoUrl!)
+                  : null,
+              child: _currentUser!.photoUrl == null
+                  ? const Icon(Icons.person, size: 40)
+                  : null,
+            ),
+          ),
+        ],
+        ListTile(
+          leading: const Icon(Icons.person),
+          title: const Text('প্রোফাইল'),
+          onTap: _showProfile,
+        ),
+        ListTile(
+          leading: const Icon(Icons.notifications),
+          title: const Text('নোটিফিকেশন'),
+          onTap: () {
+            // Navigate to notification settings
+          },
+        ),
+        ListTile(
+          leading: const Icon(Icons.privacy_tip),
+          title: const Text('প্রাইভেসি'),
+          onTap: () {
+            // Navigate to privacy settings
+          },
+        ),
+        ListTile(
+          leading: const Icon(Icons.help),
+          title: const Text('সাহায্য'),
+          onTap: () {
+            // Navigate to help screen
+          },
+        ),
+        const Divider(),
+        ListTile(
+          leading: const Icon(Icons.logout, color: Colors.red),
+          title: const Text('সাইন আউট', style: TextStyle(color: Colors.red)),
+          onTap: _signOut,
+        ),
+      ],
     );
+  }
+
+  void _showSignInOptions() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('সাইন ইন'),
+        content: const Text('অনুগ্রহ করে সাইন ইন করুন'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('বাতিল'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              // Implement sign in logic
+            },
+            child: const Text('সাইন ইন'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showProfile() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('প্রোফাইল'),
+        content: _currentUser != null
+            ? Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircleAvatar(
+                    radius: 40,
+                    backgroundImage: _currentUser!.photoUrl != null
+                        ? NetworkImage(_currentUser!.photoUrl!)
+                        : null,
+                    child: _currentUser!.photoUrl == null
+                        ? const Icon(Icons.person, size: 40)
+                        : null,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    _currentUser!.name,
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  Text(_currentUser!.email),
+                ],
+              )
+            : const Text('প্রোফাইল লোড হচ্ছে...'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('বন্ধ করুন'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showSettings() {
+    setState(() {
+      _currentIndex = 3;
+    });
+  }
+
+  void _startChatWithUser(UserModel user) async {
+    try {
+      final chatId = ChatModel.getChatId(_currentUser!.uid, user.uid);
+      
+      // Check if chat already exists
+      final existingChat = await FirebaseFirestore.instance
+          .collection('chats')
+          .doc(chatId)
+          .get();
+
+      ChatModel chat;
+      if (existingChat.exists) {
+        chat = ChatModel.fromFirestore(existingChat);
+      } else {
+        // Create new chat
+        chat = ChatModel(
+          id: chatId,
+          participants: [_currentUser!.uid, user.uid],
+          participantNames: {
+            _currentUser!.uid: _currentUser!.name,
+            user.uid: user.name,
+          },
+          participantPhotos: {
+            _currentUser!.uid: _currentUser!.photoUrl ?? '',
+            user.uid: user.photoUrl ?? '',
+          },
+          createdAt: DateTime.now(),
+        );
+
+        await FirebaseFirestore.instance
+            .collection('chats')
+            .doc(chatId)
+            .set(chat.toMap());
+      }
+
+      // Navigate to chat list and then the chat will be available
+      setState(() {
+        _currentIndex = 0;
+      });
+    } catch (e) {
+      print('Error starting chat: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('চ্যাট শুরু করতে সমস্যা হয়েছে')),
+      );
+    }
   }
 }
