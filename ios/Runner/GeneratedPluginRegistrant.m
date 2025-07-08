@@ -42,6 +42,12 @@
 @import device_info_plus;
 #endif
 
+#if __has_include(<file_picker/FilePickerPlugin.h>)
+#import <file_picker/FilePickerPlugin.h>
+#else
+@import file_picker;
+#endif
+
 #if __has_include(<firebase_app_check/FLTFirebaseAppCheckPlugin.h>)
 #import <firebase_app_check/FLTFirebaseAppCheckPlugin.h>
 #else
@@ -126,10 +132,10 @@
 @import shared_preferences_foundation;
 #endif
 
-#if __has_include(<sqflite_darwin/SqflitePlugin.h>)
-#import <sqflite_darwin/SqflitePlugin.h>
+#if __has_include(<sqflite/SqflitePlugin.h>)
+#import <sqflite/SqflitePlugin.h>
 #else
-@import sqflite_darwin;
+@import sqflite;
 #endif
 
 #if __has_include(<video_player_avfoundation/FVPVideoPlayerPlugin.h>)
@@ -153,6 +159,7 @@
   [FLTFirebaseFunctionsPlugin registerWithRegistrar:[registry registrarForPlugin:@"FLTFirebaseFunctionsPlugin"]];
   [ConnectivityPlusPlugin registerWithRegistrar:[registry registrarForPlugin:@"ConnectivityPlusPlugin"]];
   [FPPDeviceInfoPlusPlugin registerWithRegistrar:[registry registrarForPlugin:@"FPPDeviceInfoPlusPlugin"]];
+  [FilePickerPlugin registerWithRegistrar:[registry registrarForPlugin:@"FilePickerPlugin"]];
   [FLTFirebaseAppCheckPlugin registerWithRegistrar:[registry registrarForPlugin:@"FLTFirebaseAppCheckPlugin"]];
   [FLTFirebaseAuthPlugin registerWithRegistrar:[registry registrarForPlugin:@"FLTFirebaseAuthPlugin"]];
   [FLTFirebaseCorePlugin registerWithRegistrar:[registry registrarForPlugin:@"FLTFirebaseCorePlugin"]];

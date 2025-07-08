@@ -40,7 +40,8 @@ class PerformanceService {
     _memoryCleanupTimer?.cancel();
     _performanceMonitorTimer?.cancel();
     if (_frameCallback != null) {
-      SchedulerBinding.instance.removePostFrameCallback(_frameCallback!);
+      // Note: There's no removePostFrameCallback method, we just set the callback to null
+      _frameCallback = null;
     }
   }
 

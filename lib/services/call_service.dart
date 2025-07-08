@@ -61,6 +61,88 @@ class CallService {
     return _generateTokenWithSupabase(channelName, uid);
   }
 
+
+
+  // Answer call
+  Future<void> answerCall(String callId) async {
+    try {
+      debugPrint('📞 Answering call: $callId');
+      await _updateCallStatus(callId, CallStatus.accepted);
+    } catch (e) {
+      debugPrint('❌ Error answering call: $e');
+      rethrow;
+    }
+  }
+
+  // Update call status
+  Future<void> updateCallStatus(String callId, CallStatus status) async {
+    await _updateCallStatus(callId, status);
+  }
+
+  // Get call by ID
+  Future<CallModel?> getCall(String callId) async {
+    try {
+      final doc = await _callsCollection.doc(callId).get();
+      if (doc.exists) {
+        return CallModel.fromMap(doc.data() as Map<String, dynamic>, doc.id);
+      }
+      return null;
+    } catch (e) {
+      debugPrint('❌ Error getting call: $e');
+      return null;
+    }
+  }
+
+  // Listen to call updates
+  Stream<CallModel?> listenToCall(String callId) {
+    return _callsCollection.doc(callId).snapshots().map((doc) {
+      if (doc.exists) {
+        return CallModel.fromMap(doc.data() as Map<String, dynamic>, doc.id);
+      }
+      return null;
+    });
+  }
+
+  // Register event handler
+  void registerEventHandler({
+    Function(RtcConnection, int, int)? onUserJoined,
+    Function(RtcConnection, int, UserOfflineReasonType)? onUserOffline,
+    Function(VideoSourceType, LocalVideoStreamState, dynamic)? onLocalVideoStateChanged,
+    Function(RtcConnection, int, RemoteVideoState, RemoteVideoStateReason, int)? onRemoteVideoStateChanged,
+    Function(RtcConnection, int, RemoteAudioState, RemoteAudioStateReason, int)? onRemoteAudioStateChanged,
+    Function(RtcConnection, List<AudioVolumeInfo>, int, int)? onAudioVolumeIndication,
+    Function(RtcConnection, ConnectionStateType, ConnectionChangedReasonType)? onConnectionStateChanged,
+  }) {
+    if (_engine == null) {
+      debugPrint('❌ Cannot register event handler: engine is null');
+      return;
+    }
+
+    _engine!.registerEventHandler(
+      RtcEngineEventHandler(
+        onJoinChannelSuccess: (RtcConnection connection, int elapsed) {
+          debugPrint('✅ Successfully joined channel: ${connection.channelId}');
+        },
+        onUserJoined: onUserJoined,
+        onUserOffline: onUserOffline,
+        onLocalVideoStateChanged: onLocalVideoStateChanged,
+        onRemoteVideoStateChanged: onRemoteVideoStateChanged,
+        onRemoteAudioStateChanged: onRemoteAudioStateChanged,
+        onAudioVolumeIndication: onAudioVolumeIndication,
+        onConnectionStateChanged: onConnectionStateChanged,
+        onError: (ErrorCodeType err, String msg) {
+          debugPrint('❌ Agora error: $err - $msg');
+        },
+      ),
+    );
+  }
+
+
+
+
+
+
+
   // Generate numeric UID from string for Agora (public method)
   int generateNumericUidFromString(String uid, {bool isReceiver = false}) {
     if (uid.isEmpty) return 1;
@@ -368,7 +450,7 @@ class CallService {
 
       // Join the channel
       await _engine!.joinChannel(
-        token: call.token,
+        token: call.token ?? '',
         channelId: call.channelId,
         uid: uid,
         options: options,
@@ -498,36 +580,22 @@ class CallService {
     }
   }
 
-  // Get call by ID
-  Future<CallModel?> getCall(String callId) async {
-    try {
-      final doc = await _callsCollection.doc(callId).get();
-      if (doc.exists) {
-        return CallModel.fromMap(doc.data() as Map<String, dynamic>);
-      }
-      return null;
-    } catch (e) {
-      debugPrint('❌ Error getting call: $e');
-      return null;
-    }
-  }
-
-  // Listen to call updates
-  Stream<CallModel?> listenToCall(String callId) {
-    return _callsCollection.doc(callId).snapshots().map((doc) {
-      if (doc.exists) {
-        return CallModel.fromMap(doc.data() as Map<String, dynamic>);
-      }
-      return null;
-    });
-  }
-
   // Listen to incoming calls for a user
   Stream<QuerySnapshot> listenToIncomingCalls(String userId) {
     return _callsCollection
         .where('receiverId', isEqualTo: userId)
         .where('status', isEqualTo: 'ringing')
         .snapshots();
+  }
+
+  // Get call by ID as stream
+  Stream<CallModel?> getCallById(String callId) {
+    return _callsCollection.doc(callId).snapshots().map((snapshot) {
+      if (snapshot.exists) {
+        return CallModel.fromMap(snapshot.data() as Map<String, dynamic>, snapshot.id);
+      }
+      return null;
+    });
   }
 
   // Test Agora connection
@@ -580,25 +648,7 @@ class CallService {
     }
   }
 
-  // Register event handler for call events
-  void registerEventHandler(Function(CallEvent) handler, {
-    Function(int, int)? onUserJoined,
-    Function(int, int)? onUserOffline,
-    Function(VideoState)? onLocalVideoStateChanged,
-    Function(int, VideoState)? onRemoteVideoStateChanged,
-    Function(int, AudioState)? onRemoteAudioStateChanged,
-    Function(List<AudioVolumeInfo>)? onAudioVolumeIndication,
-    Function(ConnectionState)? onConnectionStateChanged,
-  }) {
-    // Store the event handler for call events
-    debugPrint('🎯 Registering event handler for call events');
-    
-    // Set up engine event handlers if engine is available
-    if (_engine != null) {
-      // Register engine event handlers here
-      // This is where you'd wire up the actual Agora SDK event handlers
-    }
-  }
+
 
   // Enable audio (fixed method signature)
   Future<void> enableAudio([bool enable = true]) async {
@@ -613,17 +663,6 @@ class CallService {
       }
     } catch (e) {
       debugPrint('❌ Error enabling audio: $e');
-    }
-  }
-
-  // Answer call
-  Future<void> answerCall(String callId) async {
-    try {
-      debugPrint('📞 Answering call: $callId');
-      // Add your call answering logic here
-      // This might involve joining a channel or updating call status
-    } catch (e) {
-      debugPrint('❌ Error answering call: $e');
     }
   }
 
