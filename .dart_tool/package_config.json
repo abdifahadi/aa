@@ -453,9 +453,9 @@
     },
     {
       "name": "flutter",
-      "rootUri": "file:///tmp/flutter/packages/flutter",
+      "rootUri": "file:///workspace/flutter/packages/flutter",
       "packageUri": "lib/",
-      "languageVersion": "3.2"
+      "languageVersion": "3.3"
     },
     {
       "name": "flutter_cache_manager",
@@ -531,13 +531,13 @@
     },
     {
       "name": "flutter_test",
-      "rootUri": "file:///tmp/flutter/packages/flutter_test",
+      "rootUri": "file:///workspace/flutter/packages/flutter_test",
       "packageUri": "lib/",
-      "languageVersion": "3.2"
+      "languageVersion": "3.3"
     },
     {
       "name": "flutter_web_plugins",
-      "rootUri": "file:///tmp/flutter/packages/flutter_web_plugins",
+      "rootUri": "file:///workspace/flutter/packages/flutter_web_plugins",
       "packageUri": "lib/",
       "languageVersion": "3.2"
     },
@@ -698,6 +698,24 @@
       "languageVersion": "3.0"
     },
     {
+      "name": "leak_tracker",
+      "rootUri": "file:///home/ubuntu/.pub-cache/hosted/pub.dev/leak_tracker-10.0.5",
+      "packageUri": "lib/",
+      "languageVersion": "3.2"
+    },
+    {
+      "name": "leak_tracker_flutter_testing",
+      "rootUri": "file:///home/ubuntu/.pub-cache/hosted/pub.dev/leak_tracker_flutter_testing-3.0.5",
+      "packageUri": "lib/",
+      "languageVersion": "3.2"
+    },
+    {
+      "name": "leak_tracker_testing",
+      "rootUri": "file:///home/ubuntu/.pub-cache/hosted/pub.dev/leak_tracker_testing-3.0.1",
+      "packageUri": "lib/",
+      "languageVersion": "3.2"
+    },
+    {
       "name": "lints",
       "rootUri": "file:///home/ubuntu/.pub-cache/hosted/pub.dev/lints-2.1.1",
       "packageUri": "lib/",
@@ -711,19 +729,19 @@
     },
     {
       "name": "matcher",
-      "rootUri": "file:///home/ubuntu/.pub-cache/hosted/pub.dev/matcher-0.12.16",
+      "rootUri": "file:///home/ubuntu/.pub-cache/hosted/pub.dev/matcher-0.12.16+1",
       "packageUri": "lib/",
-      "languageVersion": "2.18"
+      "languageVersion": "3.0"
     },
     {
       "name": "material_color_utilities",
-      "rootUri": "file:///home/ubuntu/.pub-cache/hosted/pub.dev/material_color_utilities-0.5.0",
+      "rootUri": "file:///home/ubuntu/.pub-cache/hosted/pub.dev/material_color_utilities-0.11.1",
       "packageUri": "lib/",
       "languageVersion": "2.17"
     },
     {
       "name": "meta",
-      "rootUri": "file:///home/ubuntu/.pub-cache/hosted/pub.dev/meta-1.10.0",
+      "rootUri": "file:///home/ubuntu/.pub-cache/hosted/pub.dev/meta-1.15.0",
       "packageUri": "lib/",
       "languageVersion": "2.12"
     },
@@ -771,9 +789,9 @@
     },
     {
       "name": "path",
-      "rootUri": "file:///home/ubuntu/.pub-cache/hosted/pub.dev/path-1.8.3",
+      "rootUri": "file:///home/ubuntu/.pub-cache/hosted/pub.dev/path-1.9.0",
       "packageUri": "lib/",
-      "languageVersion": "2.12"
+      "languageVersion": "3.0"
     },
     {
       "name": "path_provider",
@@ -951,7 +969,7 @@
     },
     {
       "name": "sky_engine",
-      "rootUri": "file:///tmp/flutter/bin/cache/pkg/sky_engine",
+      "rootUri": "file:///workspace/flutter/bin/cache/pkg/sky_engine",
       "packageUri": "lib/",
       "languageVersion": "3.2"
     },
@@ -1017,9 +1035,9 @@
     },
     {
       "name": "test_api",
-      "rootUri": "file:///home/ubuntu/.pub-cache/hosted/pub.dev/test_api-0.6.1",
+      "rootUri": "file:///home/ubuntu/.pub-cache/hosted/pub.dev/test_api-0.7.2",
       "packageUri": "lib/",
-      "languageVersion": "3.0"
+      "languageVersion": "3.2"
     },
     {
       "name": "timezone",
@@ -1088,6 +1106,12 @@
       "languageVersion": "2.12"
     },
     {
+      "name": "vm_service",
+      "rootUri": "file:///home/ubuntu/.pub-cache/hosted/pub.dev/vm_service-14.2.5",
+      "packageUri": "lib/",
+      "languageVersion": "3.3"
+    },
+    {
       "name": "wakelock_plus",
       "rootUri": "file:///home/ubuntu/.pub-cache/hosted/pub.dev/wakelock_plus-1.1.4",
       "packageUri": "lib/",
@@ -1154,7 +1178,10 @@
       "languageVersion": "3.0"
     }
   ],
-  "generated": "2025-07-08T08:47:37.182634Z",
+  "generated": "2025-07-08T16:08:07.403673Z",
   "generator": "pub",
-  "generatorVersion": "3.2.6"
+  "generatorVersion": "3.5.3",
+  "flutterRoot": "file:///workspace/flutter",
+  "flutterVersion": "3.24.3",
+  "pubCache": "file:///home/ubuntu/.pub-cache"
 }

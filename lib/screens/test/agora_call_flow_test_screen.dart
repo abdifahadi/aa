@@ -77,7 +77,7 @@ class _AgoraCallFlowTestScreenState extends State<AgoraCallFlowTestScreen> {
               _remoteUid = uid;
             });
           },
-          onUserLeft: (RtcConnection connection, int uid, UserOfflineReasonType reason) {
+          onUserOffline: (RtcConnection connection, int uid, UserOfflineReasonType reason) {
             _addLog('👋 User left: $uid');
             setState(() {
               _remoteUid = null;
@@ -100,7 +100,7 @@ class _AgoraCallFlowTestScreenState extends State<AgoraCallFlowTestScreen> {
           onLocalVideoStateChanged: (VideoSourceType source, LocalVideoStreamState state, LocalVideoStreamReason reason) {
             _addLog('📹 Local video state: $state');
           },
-          onLocalAudioStateChanged: (LocalAudioStreamState state, LocalAudioStreamReason reason) {
+          onLocalAudioStateChanged: (RtcConnection connection, LocalAudioStreamState state, LocalAudioStreamReason reason) {
             _addLog('🎤 Local audio state: $state');
           },
           onRemoteVideoStateChanged: (RtcConnection connection, int uid, RemoteVideoState state, RemoteVideoStateReason reason, int elapsed) {
