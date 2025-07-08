@@ -1,4 +1,5 @@
 # This is a generated file; do not edit or check into version control.
+agora_rtc_engine=/home/ubuntu/.pub-cache/hosted/pub.dev/agora_rtc_engine-6.5.2/
 audioplayers=/home/ubuntu/.pub-cache/hosted/pub.dev/audioplayers-5.2.1/
 audioplayers_android=/home/ubuntu/.pub-cache/hosted/pub.dev/audioplayers_android-4.0.3/
 audioplayers_darwin=/home/ubuntu/.pub-cache/hosted/pub.dev/audioplayers_darwin-5.0.2/
@@ -44,6 +45,7 @@ image_picker_ios=/home/ubuntu/.pub-cache/hosted/pub.dev/image_picker_ios-0.8.9+1
 image_picker_linux=/home/ubuntu/.pub-cache/hosted/pub.dev/image_picker_linux-0.2.1+1/
 image_picker_macos=/home/ubuntu/.pub-cache/hosted/pub.dev/image_picker_macos-0.2.1+1/
 image_picker_windows=/home/ubuntu/.pub-cache/hosted/pub.dev/image_picker_windows-0.2.1+1/
+iris_method_channel=/home/ubuntu/.pub-cache/hosted/pub.dev/iris_method_channel-2.2.3/
 package_info_plus=/home/ubuntu/.pub-cache/hosted/pub.dev/package_info_plus-5.0.1/
 path_provider=/home/ubuntu/.pub-cache/hosted/pub.dev/path_provider-2.1.4/
 path_provider_android=/home/ubuntu/.pub-cache/hosted/pub.dev/path_provider_android-2.2.4/
