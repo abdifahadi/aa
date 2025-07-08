@@ -1,2 +1,3 @@
 flutter_linux_3.22.2-stable.tar.xz
-flutter/
+*.tar.xz
+flutter_linux*.tar.xz

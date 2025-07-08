@@ -8,6 +8,8 @@ class MessageInput extends StatefulWidget {
   final Function(MessageModel) onSendMessage;
   final String currentUserId;
   final String chatId;
+  final String senderName;
+  final String senderEmail;
   final bool isEnabled;
 
   const MessageInput({
@@ -15,6 +17,8 @@ class MessageInput extends StatefulWidget {
     required this.onSendMessage,
     required this.currentUserId,
     required this.chatId,
+    required this.senderName,
+    required this.senderEmail,
     this.isEnabled = true,
   }) : super(key: key);
 
@@ -64,11 +68,12 @@ class _MessageInputState extends State<MessageInput> {
     final message = MessageModel(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       senderId: widget.currentUserId,
-      senderEmail: '', // Add proper email handling
+      senderEmail: widget.senderEmail,
       content: text,
       type: MessageType.text,
       timestamp: DateTime.now(),
       isRead: false,
+      senderName: widget.senderName,
     );
 
     widget.onSendMessage(message);
@@ -100,12 +105,13 @@ class _MessageInputState extends State<MessageInput> {
           final message = MessageModel(
             id: DateTime.now().millisecondsSinceEpoch.toString(),
             senderId: widget.currentUserId,
-            senderEmail: '', // Add proper email handling
+            senderEmail: widget.senderEmail,
             content: imageUrl,
             type: MessageType.image,
             timestamp: DateTime.now(),
             isRead: false,
             mediaUrl: imageUrl,
+            senderName: widget.senderName,
           );
 
           widget.onSendMessage(message);
@@ -149,12 +155,13 @@ class _MessageInputState extends State<MessageInput> {
           final message = MessageModel(
             id: DateTime.now().millisecondsSinceEpoch.toString(),
             senderId: widget.currentUserId,
-            senderEmail: '', // Add proper email handling
+            senderEmail: widget.senderEmail,
             content: imageUrl,
             type: MessageType.image,
             timestamp: DateTime.now(),
             isRead: false,
             mediaUrl: imageUrl,
+            senderName: widget.senderName,
           );
 
           widget.onSendMessage(message);
@@ -196,12 +203,13 @@ class _MessageInputState extends State<MessageInput> {
           final message = MessageModel(
             id: DateTime.now().millisecondsSinceEpoch.toString(),
             senderId: widget.currentUserId,
-            senderEmail: '', // Add proper email handling
+            senderEmail: widget.senderEmail,
             content: videoUrl,
             type: MessageType.video,
             timestamp: DateTime.now(),
             isRead: false,
             mediaUrl: videoUrl,
+            senderName: widget.senderName,
           );
 
           widget.onSendMessage(message);

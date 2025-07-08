@@ -109,11 +109,11 @@ class OfflineSyncService {
       // Determine the message type and call appropriate method
       if (type == 'text') {
         await _firebaseService.sendTextMessage(
-          chatId,
-          message['content'],
-          message['senderId'],
-          message['senderEmail'],
-          message['senderName'] ?? 'User',
+          chatId: chatId,
+          content: message['content'],
+          senderId: message['senderId'],
+          senderEmail: message['senderEmail'],
+          senderName: message['senderName'] ?? 'User',
         );
       } else {
         // For media messages
@@ -133,15 +133,31 @@ class OfflineSyncService {
 
         // Only proceed if we have a media URL
         if (mediaUrl != null) {
+          // Determine message type from string
+          MessageType messageType;
+          switch (type.toLowerCase()) {
+            case 'image':
+              messageType = MessageType.image;
+              break;
+            case 'video':
+              messageType = MessageType.video;
+              break;
+            case 'document':
+              messageType = MessageType.document;
+              break;
+            default:
+              messageType = MessageType.text;
+          }
+
           await _firebaseService.sendMediaMessage(
             chatId: chatId,
             content: message['content'],
-            mediaUrl: mediaUrl,
-            mediaName: message['mediaName'] ?? 'file',
-            type: type,
+            type: messageType,
             senderId: message['senderId'],
             senderEmail: message['senderEmail'],
             senderName: message['senderName'] ?? 'User',
+            mediaUrl: mediaUrl,
+            mediaName: message['mediaName'],
             mediaSize: message['mediaSize'],
           );
         } else {

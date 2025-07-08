@@ -463,10 +463,12 @@ class _CallScreenState extends State<CallScreen> with WidgetsBindingObserver {
         ? widget.call.receiverName
         : widget.call.callerName;
 
-    return WillPopScope(
-      onWillPop: () async {
-        _endCall();
-        return false;
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) {
+        if (!didPop) {
+          _endCall();
+        }
       },
       child: Scaffold(
         backgroundColor: Colors.black,
@@ -498,42 +500,10 @@ class _CallScreenState extends State<CallScreen> with WidgetsBindingObserver {
                   right: 20,
                   top: 60,
                   width: 120,
-                  height: 180,
-                  child: GestureDetector(
-                    onPanUpdate: (details) {
-                      // Allow dragging the PiP view
-                      // This would need state to track position
-                    },
-                    child: Container(
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.white, width: 2),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: _localVideo!,
-                      ),
-                    ),
-                  ),
-                ),
-
-              // Video muted indicator
-              if (_isVideoMuted && _isCallConnected)
-                Positioned(
-                  right: 20,
-                  top: 60,
-                  width: 120,
-                  height: 180,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.black54,
-                      border: Border.all(color: Colors.white, width: 2),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Center(
-                      child: Icon(Icons.videocam_off,
-                          color: Colors.white, size: 40),
-                    ),
+                  height: 160,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: _localVideo!,
                   ),
                 ),
             ],

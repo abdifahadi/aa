@@ -64,6 +64,40 @@ class UserModel {
     );
   }
 
+  factory UserModel.fromMap(Map<String, dynamic> data) {
+    // Convert string status to enum
+    UserStatus userStatus = UserStatus.offline;
+    if (data['status'] != null) {
+      try {
+        final status = data['status'].toString();
+        userStatus = UserStatus.values.firstWhere(
+          (e) => e.toString().split('.').last.toLowerCase() == status.toLowerCase(),
+          orElse: () => UserStatus.offline,
+        );
+      } catch (e) {
+        print("Error parsing user status: $e");
+        userStatus = UserStatus.offline;
+      }
+    }
+    
+    return UserModel(
+      uid: data['uid'] ?? '',
+      email: data['email'] ?? '',
+      name: data['name'] ?? '',
+      dateOfBirth: data['dateOfBirth'] != null
+          ? (data['dateOfBirth'] as Timestamp).toDate()
+          : null,
+      photoUrl: data['photoUrl'],
+      createdAt: data['createdAt'] != null
+          ? (data['createdAt'] as Timestamp).toDate()
+          : DateTime.now(),
+      lastSeen: data['lastSeen'] != null
+          ? (data['lastSeen'] as Timestamp).toDate()
+          : null,
+      status: userStatus,
+    );
+  }
+
   Map<String, dynamic> toMap() {
     return {
       'email': email,

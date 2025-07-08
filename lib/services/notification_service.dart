@@ -7,6 +7,9 @@ import 'package:flutter/material.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
+import '../utils/constants.dart';
 
 import '../models/call_model.dart';
 import '../screens/incoming_call_screen.dart';
@@ -38,129 +41,308 @@ class NotificationService {
     debugPrint('NotificationService: Using shared navigator key');
   }
 
+  bool _isInitialized = false;
+  String? _fcmToken;
+
+  // Initialize the notification service
   Future<void> initialize() async {
-    // Request notification permissions
-    await _requestNotificationPermissions();
+    if (_isInitialized) return;
 
-    // Initialize local notifications
-    await _initializeLocalNotifications();
+    try {
+      // Request permission for notifications
+      final permission = await _firebaseMessaging.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+        carPlay: false,
+        criticalAlert: false,
+        provisional: false,
+        announcement: false,
+      );
 
-    // Setup Firebase Messaging
-    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      debugPrint('Got a message whilst in the foreground!');
-      debugPrint('Message data: ${message.data}');
-
-      if (message.notification != null) {
-        debugPrint(
-            'Message also contained a notification: ${message.notification}');
-
-        if (message.data['type'] == 'call') {
-          // Handle incoming call
-          final String callId = message.data['callId'] ?? '';
-          final String callerId = message.data['callerId'] ?? '';
-          final String callerName = message.data['callerName'] ?? 'Unknown';
-          final String callType = message.data['callType'] ?? 'audio';
-
-          // Create a CallModel from the message data
-          final CallModel call = CallModel(
-            id: callId,
-            callerId: callerId,
-            callerName: callerName,
-            callerPhotoUrl: message.data['callerPhotoUrl'] ?? '',
-            receiverId: _auth.currentUser?.uid ?? '',
-            receiverName: message.data['receiverName'] ?? '',
-            receiverPhotoUrl: message.data['receiverPhotoUrl'] ?? '',
-            channelId: message.data['channelId'] ?? '',
-            token: message.data['token'] ?? '',
-            type: callType == 'video' ? CallType.video : CallType.audio,
-            status: CallStatus.ringing,
-            createdAt: DateTime.now(),
-            numericUid: int.tryParse(message.data['numericUid'] ?? '0') ?? 0,
-            participants: [callerId, _auth.currentUser?.uid ?? ''],
-          );
-
-          showIncomingCallNotification(call);
-        }
+      if (permission.authorizationStatus == AuthorizationStatus.authorized) {
+        debugPrint('‚úÖ Notification permission granted');
+      } else {
+        debugPrint('‚ùå Notification permission denied');
+        return;
       }
-    });
 
-    // Handle background messages
-    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+      // Initialize local notifications
+      await _initializeLocalNotifications();
 
-    // Handle notifications opened app from terminated state
-    FirebaseMessaging.instance
-        .getInitialMessage()
-        .then((RemoteMessage? message) {
-      if (message != null && message.data['type'] == 'call') {
-        _handleCallNotification(message);
-      }
-    });
+      // Get FCM token
+      _fcmToken = await _firebaseMessaging.getToken();
+      debugPrint('üì± FCM Token: $_fcmToken');
 
-    // Handle notification when app is in background but opened
-    FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-      if (message.data['type'] == 'call') {
-        _handleCallNotification(message);
-      }
-    });
+      // Listen for token refresh
+      _firebaseMessaging.onTokenRefresh.listen((token) {
+        _fcmToken = token;
+        debugPrint('üîÑ FCM Token refreshed: $token');
+      });
 
-    // Listen for incoming calls from Firestore even when app is in background
-    _setupBackgroundCallListener();
+      // Handle foreground messages
+      FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
+
+      // Handle background messages
+      FirebaseMessaging.onBackgroundMessage(_handleBackgroundMessage);
+
+      // Handle notification taps when app is in background/terminated
+      FirebaseMessaging.onMessageOpenedApp.listen(_handleNotificationTap);
+
+      _isInitialized = true;
+      debugPrint('‚úÖ NotificationService initialized successfully');
+
+    } catch (e) {
+      debugPrint('‚ùå Error initializing NotificationService: $e');
+    }
   }
 
   Future<void> _initializeLocalNotifications() async {
-    debugPrint('Initializing local notifications');
-
-    // Initialize settings for Android
-    const AndroidInitializationSettings initializationSettingsAndroid =
-        AndroidInitializationSettings('@mipmap/ic_launcher');
-
-    // Initialize settings for iOS
-    const DarwinInitializationSettings initializationSettingsIOS =
-        DarwinInitializationSettings(
+    const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const iosSettings = DarwinInitializationSettings(
       requestAlertPermission: true,
       requestBadgePermission: true,
       requestSoundPermission: true,
     );
 
-    // Initialize settings for all platforms
-    const InitializationSettings initializationSettings =
-        InitializationSettings(
-      android: initializationSettingsAndroid,
-      iOS: initializationSettingsIOS,
+    const initializationSettings = InitializationSettings(
+      android: androidSettings,
+      iOS: iosSettings,
     );
 
-    // Initialize the plugin
     await _flutterLocalNotificationsPlugin.initialize(
       initializationSettings,
-      onDidReceiveNotificationResponse: _onNotificationTapped,
+      onDidReceiveNotificationResponse: _onLocalNotificationTap,
     );
 
-    debugPrint('Local notifications initialized successfully');
+    // Create notification channels for Android
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      await _createNotificationChannels();
+    }
   }
 
-  void _onNotificationTapped(NotificationResponse response) {
-    debugPrint('Notification tapped: ${response.payload}');
+  Future<void> _createNotificationChannels() async {
+    const messagesChannel = AndroidNotificationChannel(
+      AppConstants.defaultNotificationChannelId,
+      AppConstants.defaultNotificationChannelName,
+      description: 'Notifications for new messages',
+      importance: Importance.high,
+      sound: RawResourceAndroidNotificationSound('notification_sound'),
+    );
 
-    // Parse the payload to get call information
-    if (response.payload != null) {
-      try {
-        final callId = response.payload!;
+    const callsChannel = AndroidNotificationChannel(
+      AppConstants.callNotificationChannelId,
+      AppConstants.callNotificationChannelName,
+      description: 'Notifications for incoming calls',
+      importance: Importance.max,
+      sound: RawResourceAndroidNotificationSound('ringtone'),
+    );
 
-        // Fetch call details from Firestore
-        _firestore.collection('calls').doc(callId).get().then((doc) {
-          if (doc.exists) {
-            final CallModel call = CallModel.fromFirestore(doc);
+    await _flutterLocalNotificationsPlugin
+        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+        ?.createNotificationChannel(messagesChannel);
 
-            // Only show incoming call if it's still ringing
-            if (call.status == CallStatus.ringing ||
-                call.status == CallStatus.dialing) {
-              showIncomingCallScreen(call);
-            }
-          }
-        });
-      } catch (e) {
-        debugPrint('Error handling notification tap: $e');
+    await _flutterLocalNotificationsPlugin
+        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+        ?.createNotificationChannel(callsChannel);
+  }
+
+  // Handle foreground messages
+  void _handleForegroundMessage(RemoteMessage message) {
+    debugPrint('üì® Foreground message received: ${message.messageId}');
+    
+    // Show local notification for foreground messages
+    _showLocalNotification(
+      title: message.notification?.title ?? 'New Message',
+      body: message.notification?.body ?? '',
+      payload: message.data.toString(),
+    );
+  }
+
+  // Handle background messages
+  static Future<void> _handleBackgroundMessage(RemoteMessage message) async {
+    debugPrint('üì® Background message received: ${message.messageId}');
+    // Handle background message processing here
+  }
+
+  // Handle notification tap
+  void _handleNotificationTap(RemoteMessage message) {
+    debugPrint('üëÜ Notification tapped: ${message.messageId}');
+    // Handle navigation based on notification data
+    _handleNotificationNavigation(message.data);
+  }
+
+  // Handle local notification tap
+  void _onLocalNotificationTap(NotificationResponse response) {
+    debugPrint('üëÜ Local notification tapped: ${response.payload}');
+    // Handle navigation based on payload
+  }
+
+  // Handle notification navigation
+  void _handleNotificationNavigation(Map<String, dynamic> data) {
+    final type = data['type'] as String?;
+    
+    switch (type) {
+      case 'message':
+        // Navigate to chat screen
+        debugPrint('Navigate to chat: ${data['chatId']}');
+        break;
+      case 'call':
+        // Navigate to call screen
+        debugPrint('Navigate to call: ${data['callId']}');
+        break;
+      default:
+        debugPrint('Unknown notification type: $type');
+    }
+  }
+
+  // Show local notification
+  Future<void> _showLocalNotification({
+    required String title,
+    required String body,
+    String? payload,
+    String channelId = AppConstants.defaultNotificationChannelId,
+  }) async {
+    const androidDetails = AndroidNotificationDetails(
+      AppConstants.defaultNotificationChannelId,
+      AppConstants.defaultNotificationChannelName,
+      importance: Importance.high,
+      priority: Priority.high,
+      icon: '@mipmap/ic_launcher',
+    );
+
+    const iosDetails = DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: true,
+      presentSound: true,
+    );
+
+    const notificationDetails = NotificationDetails(
+      android: androidDetails,
+      iOS: iosDetails,
+    );
+
+    await _flutterLocalNotificationsPlugin.show(
+      DateTime.now().millisecondsSinceEpoch.remainder(100000),
+      title,
+      body,
+      notificationDetails,
+      payload: payload,
+    );
+  }
+
+  // Send message notification
+  Future<void> sendMessageNotification({
+    required String title,
+    required String body,
+    required String chatId,
+    required String senderId,
+  }) async {
+    await _showLocalNotification(
+      title: title,
+      body: body,
+      payload: 'message:$chatId:$senderId',
+    );
+  }
+
+  // Send call notification
+  Future<void> sendCallNotification({
+    required String callerName,
+    required String callType,
+    required String callId,
+  }) async {
+    await _showLocalNotification(
+      title: 'Incoming $callType call',
+      body: 'From $callerName',
+      payload: 'call:$callId',
+      channelId: AppConstants.callNotificationChannelId,
+    );
+  }
+
+  // Play ringtone for incoming calls
+  Future<void> playRingtone() async {
+    try {
+      if (!_isRingtonePlaying) {
+        // This would typically use a plugin like just_audio to play ringtone
+        debugPrint('üîî Playing ringtone...');
+        _isRingtonePlaying = true;
+        // Implementation would depend on your audio plugin choice
+        // await _audioPlayer.play(AssetSource('sounds/ringtone.mp3'));
       }
+    } catch (e) {
+      debugPrint('‚ùå Error playing ringtone: $e');
+    }
+  }
+
+  // Internal method to play ringtone
+  Future<void> _playRingtone() async {
+    await playRingtone();
+  }
+
+  // Stop ringtone
+  Future<void> stopRingtone() async {
+    try {
+      if (_isRingtonePlaying) {
+        debugPrint('üîï Stopping ringtone...');
+        _isRingtonePlaying = false;
+        // Implementation would depend on your audio plugin choice
+        // await _audioPlayer.stop();
+      }
+    } catch (e) {
+      debugPrint('‚ùå Error stopping ringtone: $e');
+    }
+  }
+
+  // Show test notification
+  Future<void> showTestNotification() async {
+    await _showLocalNotification(
+      title: 'Test Notification',
+      body: 'This is a test notification from developer menu',
+      payload: 'test',
+    );
+  }
+
+  // Get FCM token
+  Future<String?> getFCMToken() async {
+    try {
+      _fcmToken ??= await _firebaseMessaging.getToken();
+      return _fcmToken;
+    } catch (e) {
+      debugPrint('‚ùå Error getting FCM token: $e');
+      return null;
+    }
+  }
+
+  // Subscribe to topic
+  Future<void> subscribeToTopic(String topic) async {
+    try {
+      await _firebaseMessaging.subscribeToTopic(topic);
+      debugPrint('‚úÖ Subscribed to topic: $topic');
+    } catch (e) {
+      debugPrint('‚ùå Error subscribing to topic $topic: $e');
+    }
+  }
+
+  // Unsubscribe from topic
+  Future<void> unsubscribeFromTopic(String topic) async {
+    try {
+      await _firebaseMessaging.unsubscribeFromTopic(topic);
+      debugPrint('‚úÖ Unsubscribed from topic: $topic');
+    } catch (e) {
+      debugPrint('‚ùå Error unsubscribing from topic $topic: $e');
+    }
+  }
+
+  // Clear all notifications
+  Future<void> clearAllNotifications() async {
+    await _flutterLocalNotificationsPlugin.cancelAll();
+  }
+
+  // Update badge count (iOS)
+  Future<void> updateBadgeCount(int count) async {
+    if (defaultTargetPlatform == TargetPlatform.iOS) {
+      await _firebaseMessaging.setAutoInitEnabled(true);
+      // Badge count is typically managed by the server or through a plugin
     }
   }
 
@@ -169,8 +351,7 @@ class NotificationService {
     final currentUser = _auth.currentUser;
     if (currentUser == null) return;
 
-    debugPrint(
-        'Setting up background call listener for user: ${currentUser.uid}');
+    debugPrint('Setting up background call listener for user: ${currentUser.uid}');
 
     // Listen to the user's calls subcollection for incoming calls
     _firestore
@@ -180,8 +361,7 @@ class NotificationService {
         .where('status', isEqualTo: 'ringing')
         .snapshots()
         .listen((snapshot) {
-      debugPrint(
-          'Background listener received call snapshot: ${snapshot.docs.length} documents');
+      debugPrint('Background listener received call snapshot: ${snapshot.docs.length} documents');
 
       if (snapshot.docs.isNotEmpty) {
         final callDoc = snapshot.docs.first;
@@ -214,20 +394,136 @@ class NotificationService {
             call.status == CallStatus.dialing) {
           showIncomingCallScreen(call);
         } else {
-          debugPrint(
-              'Call is no longer ringing (status: ${call.status}), not showing UI');
+          debugPrint('Call is no longer ringing (status: ${call.status}), not showing UI');
         }
       } else {
-        debugPrint(
-            'Call âPNG
-
-   IHDR   H   H   UÌ≥G   sRGB ÆŒÈ   DeXIfMM *    ái            †       †       H†       H    ê1FÔ  jIDATxÌ[kå]’u^Áﬁ;sÁﬁyx¸öÒsåÌ1∆<Ïÿ¶ÖåÑ#îîQï“Ñ"54†Ü"5•≠R˙i˚By4M#UI
+        debugPrint('Call document not found for ID: $callId');
+      }
+    }).catchError((error) {
+      debugPrint('Error fetching call document: $error');
+    });
+  }
 
-MïFƒ"	äR3Ä∆ÿégÏÒÿ&~ég<sgÓÎÙ˚÷ﬁÎÃæ/◊–˛∞´Yˆ9kÌµ◊Z{≠µgü}œàÃ√|Ê30üÅ˘Ãg`>Ûòœ¿|Ê30üÅˇÛDócÒwæﬂπùîX.Kß©›H&cëüñ+Úıäfö | f«Ì≥≥rM%#ÉQæE≤6ÆJ!#ÚÕl6z˜òj)z…`˛J‹Á‰üu≈˜-Í…§´íÚ¥åIOã¬’8í©BJNûó7£X>ÒÂOEßç‘rêÑl±(Î ióòﬁPEG¬ˆ §”
-±o»7]™FÚÒÓ∂hW≠µ^¢Ωñôåˇj”@¸G3ÖÛR©î‰˙ÂYY⁄ïFÏ±LÕ∆R(ãä±L—m¿Öhãöåß0 ^ôtJñ-î∑F‚üˆ-èÓxÍŒ®å$‰/"	)ûíƒH`AØÇ™¯$√2
-!_yU˘IgG¥√Wh‘:Aq=˝)TKß≥≈REÓ∏6/}=ÊÁú;sΩ«πáD¿L!ó8&åâ√≈§•SiÈ»D“Ÿëñ•ΩYÈ…F«ó/–ƒ≠ÄMŸ¿”B›®híçy%%ASGâÛmíè¢Hª´Q˘Ú8òÆÕ··o…∫ÆÖÏ……ä6ÿ◊ùÚ	∞Eà…¿?L,¬¸k«’ïçd)í…—íIìóí4£Œ≥9®ï∆cÄº@≠IbÄ x†¶jí$ TG§}fFV£xÑº-¥,WπnffVŒ™≤v1ƒ–-ò
-íB⁄2ú… ˆIh#O˝ı3ökpí<Ωi•s€î$ŒèÄ$!¶Kæ—¶ûÿ£Y¨dSËÆ-‘ûñ¸l9ñﬁ|JÓ‹‘-+∂ìê∂$†IuÿÁ#q"	ò2&¨§	¡⁄àbïÇóUQ–¶b™™mS"”h_˜Ú^yÒ”ﬂàœ™Mw;¥â~Ò´Do¸ñd`≤VÊ/ˇ£|{zÚ€‹“-=πtRô8õpDfK"«–ÙÈI0G-9¶£ç·f|ö∞∫¿\S^XπÙ±Û±å =t…‹™‚8^à‚RQæŸqA~Ôπ«¢âKŸk9ÇK€u+€kíCCaØë~Û®»øΩ≈ßìH.+…6@eõµLOˇ¡‘±>‚π¢„€ƒr(ã;%öLÀÿq‹˜?ƒ˜|ı¡÷€Åñ	;ÚÛ%õ∏∆Õı∏Æ~∞—˜ﬁ˘˛ë≠Î]b™Ùß¥+&¥’Éù»PV’ºû—*»±l˙&£∫‘Ûrâ-+{¨>Q£áÄ=í,¡”≥'/˘„ßÂ?±ﬁ¸˜üäˆª⁄⁄{”fœù:⁄?>Ω≤FöòíØ 9õVπ`kúıı@3]‚∞¨ASæ_e€”´Ö‹eÎ√Ûƒe·¸î`mïL±,_Î.\–4AÂÆÆçú∆ãÅ¶ﬁ˘Ã–—Yl˜∏`YJ (a	5æyaı,'˙^Oy>14`≤¥k`<ñ}ﬂ∂˘§Ú‘˜∂¥ÏçPk‘ ≈≤√l÷„¶	Í©VK¯ó>5Å4hàA&Ä¬x¡≠9⁄√æÇr›9'?=ãùí®A†^1ÍÒøÜ÷‡ŸûÔ('cºzù–˝“‰x€Í®%÷€§>ÅÎd˛Œai6>÷)¨ûÕ¡∂∆5µ{˜nú)«≈ÙŸã¡b/x'à›ÎDm∞\£nŸºFÁ∑sÄ ‘o√qú.+hè†ˆy(€®∞∫Mπ}Úæµ± Ôìø¥≈]ÿ±Ãµ„;à6Î°iÇD˛π«È∏å’l|è3Ä9Qo¿¯Ωx§DﬂW0p^1«T´ôƒ¿È§Ú‘Ix†>yZÎÎ|ô<ı¡cä05˙d∂Ä	bõúµòJu	“∆ÿ∏wÄ2∆Sö7@0huí	0=2<üï°-Mxı◊ËR«Î_‚¶˙≥NÌyMéc'˛†ÿöÆAîNß⁄¥≠ã≥5DAg©s˙»˜ç™û¶\ˆh•LòÍ≤"–e/Wﬂ@]◊∫÷,a°MméÌm:È∆{À·ΩKmŒ‡¯"ñ,8ÚCöìÒNx»õ¬"Ì, {9 Î»0ì>≠ßåóSõ§uœÒ¡∫<}ÍÚÚÌ®=–ßEå8æ⁄⁄ßÌf–2A©TFÕóxv∞∆t‰xKæ}uFe–ËiWiâ†åÈöº ¢†Â†«-êö˙ˇI?¨ßMﬂà⁄¢!ÄÒ¶qÜyd‘ïõ’;È⁄{À•”f÷∑ËıÆwFÀ§GÍì£uæﬁ‰BL”V&›L_e dr	&∞≤“(òüjK%Êx¨3yìÛ"®eÇ |“8ÏΩîmr&É„!Ö§Ïäéá;˘‘!$∫§=ìÔJ˝qTÅÅ{Ê∂n+ÊÙºn®üÿ	ß#ô mÀÕ¢˙Ëm©‡%n≠E’Jä”©´-írπ*ú˝ÿ˘IÉl»7Üìπm ê{C˘4$pæ≥'Ch%æ˛∆u"ù~37∞L‰‡1ë≥„Åæó´—á}3ü¯≈v=ìòÚãâlπ	4Ív˝ı∂ë5Â–AOª®Î*.÷NVæ#¬a0èK›(“}rÍT‘√˙$ÑŒRû~X`˙`¥∑°CÚs5,ﬂÄÑ];Äëå]0ıı
-"ü÷æ˙	æ Ço‚ƒLéñçâ≤Èì¨á¶	BÆuÎ›ç;+ïh÷C`ò$ÎÈX‚úK ®”DyYV´û/á˙ú^,<R¢±»Õô∫ºÆŸ¨√‘≥mA´ˆi◊¢Qø»‡’ö&(ï*ÎZ–éÛÙN1Hê`ˆh€w`“éµgN&ê5ß˚r¢ÔM?l+è6oYá”ûÒX]"Îm%~$ÌìÈ¡ícu¶oıı∏˘îkØAn≥»d%Î,’ãñÿÿæÇò-∫¶Õ)WËÉaáu§i3ºVˆâÙ‚aˇ∞»ƒEoÉ22Õh⁄¿ªú¡6ÑI¢˝QYî[AÛUÀö†Æ˛íQï÷ Ç9Pcå-{‡ﬁ{ﬂ8Ÿ¨÷ÀÀôÛı…RY»x1TîCå´£/≈◊·AÄÛ®qtàÅÍz°µÅ€$∫˜m¥∫Y˚f'ƒMß^T›¬"…uØÓñ–5lÜç[Pl–‰åV¶ÒMﬂ¯ƒÆ[H99+söıc4ô?¶O{Fk˚d Ö4y(€•BMnÕGP\—uÍJ‰¨†5˛∆≈ıˇk¿∑[”˚	—$4ÚöÍò—Ü√zœ´ò $ì$°¿SA:ìºíÑ˙∆e…2öl“I˚ı¡∞>Ä	r#(ﬂÜ	±ËpÒï#ù ®ì™œF@Ñ=¿∂∂·|öpé41§5õﬁ°0òê¶Ç" zZÀL KåÚP?â„“—1ﬂ>ï™Á;Di/¨4Í{zE÷™®Ï¬”˚ ÇµÔJµ˜¶	¬∫£cßµ¸Âíoc|‘wÄ[üp3Œû‚F·Íht’1‹(c4õ∑≤—ƒ⁄”x§<“LNÇQ8r?3°‘é∂«ª&û<\%Ìq/’√cbV{=≈ıA°ﬁ†IÇÓOW¢—L.õ…¥£∂Ã,√X±Ó•µﬁÅ∞L„t8qÇ&Ë0/£âÌÚù'pj±L0ææç„≠úO/œWÏUŒW0·û≠ÑµO˚º¨N}¥¯ı–ê†€á≥2ìëæ˘nµ¬Ï¬@#Hçôœ7€ä≠`2¿∂‘Îö√¶B“fBÉA≈ÿI7rt§†ÌDﬂ+±úÎó•+ÜeQﬂ®t‰'•#áyò)tJa™[¶&∞#_'’JØÍ'£ŒkÇî)ÚÁø~±h«`t”Üçó>FPxS¬9™|ñ·∏Ω\rg@=´S7Úú•π:⁄"øÄ}äÓ(ò TSéGÔ{”ß Äz›O…‡çØI◊¢aÏç∆ebz\ŒúõÖœX≈a´-›Ü◊|M“ﬂ+ŸŒ^i/Øìﬁ≈∑…ôS}5'üŒbÌΩ!AÈ∏§ÎOo'FpsX¬'00h-Sƒ;À—ÚÍ>WKû≤âI¯≤ÚºéÈèo√X[÷‚cÚé„mdÃ}NS/Ît™rÌ÷Kﬂ¿ÎÚã≥crt¯,¥ò÷¿Iî X'
-≥π0âﬂ«±?X‹3&∑Ïñ±√7À[ˇµç5›Ì@øÑË=∏E17âYêœtÛÈ•ØÙpß¯»∂˚∫É‚◊<ùN,ìˆ√ƒ¶òÍx%ìØ«î√Øµ'ê“LX®o4ÎÈ∂YπÒ÷ÔIî{[ˆ>Ñˆ¯(π4ËπZñ”„ß‰ÏƒYπf≈Eπ˝ÆsÚãwÔn©ÿò∫jF˜@πéLè˚ äQ·ÁxWÙ”å÷◊ŸU⁄3:ê1YbIÃõbìÛ">òúözÍ 4I8£brJÈ›rht?dÀË$◊ÅÜŸôUœS∫£§âK¯zÅ∫q€nπÊ#ﬂì]ÒSÉÖÌ5$(∑IÃµe¿Ê`u/¨úgex˚–ã§5``≤πª›∏“]<”1YìÛö*lzÜÕ,eıÇpàUŒÿ∞Â«"Ÿ=2r¸∞[¡¬≈´ä°eÿ—LyΩò4M∞%»â√Rn€#e—3â—ê lóuM+Ï^iˇ˙Ãuà”õé7Äl`)æ¨ƒ+@V(¶A*¡BPÆ7Ä:&Å‡ë√^«√y—ÇS≤dıÎË˝ÉX–›ìïòWïâÚò¥é&èI;yáUŒÎ:z ó‚£/«œnwÃ›T≠‚CB¿èﬁ€=ãO¥`ú#Iüdtÿq≠ %¡Û¨.	÷H~¬3Y´Ûòlì	±&Ÿ◊ﬁÙöåûA@≥ö éÎ»˙Ë»bò8\6¬(èO¡í#GOé`O˝çw-A	¬Ô©∫y8qvj‚;S24À1yûô¬«ò¡odfÅÅ,Wrw¯Ê x®ÑÅ≥2—7:LVù~æ˚º‰ñ˜œú¿a–òBá4yÕ/∑ñﬁªÍ”Ú‡⁄œkít™Aû6gã≥;ˇ=~˛ZÁ¥ª7,L”πÍHn6ÉØgæÉ3ùWG‹ﬁd_ke3eyˆ¡X⁄Ò“ Ñ0XbÇb£ïÅõüé¨≥À™àøÈi=ô‘·˙F`|‚%ÀF‰Ã¯iÌy≠d‚)tÄÚÌfuf¬˜≠˘å‹∫‰„R™eYvçù:ugà∂Wˆ≠˛u®'#©aùöÓÕw/[±ÊXˆÌi$iLÉ∆Á–Ú/?√ØoÄö∑lÔ:T^≈y/=∞'óIÃ"1†ŸÒı@ì3Zôaˇ®ú>*:mtŸ4‚bÏFñé(ø@sjqZ˝∆öﬂï_È˚Ñ&ÁÎˇBF&ﬂS~[^gŒÛGΩ¯.kó∏aë944TzÈuo\(ï§“â«58úï#Ÿ=Víﬂüî˛E9…„m÷’˘Ä°Àœ^Íßm29ö(éµÎÍHàõÈ≥éØ”«ßu-1YnbsÈ.ô©<ﬂ¢Äoï„„˛uè»G˚~UìÛµ˜˛\\xK7¿úb¥Aòö÷’e¿ï‹Ωa%ï•∂wsY¸ÌÄMÊ€Ò˚Üo˚¯Öäú∫àÖCus≠v∂úí∞K”ﬁºö0⁄tXŒvL·√ÙÇ%n—Õ•∫‰≥7<-~~‡Ç£Ü£*Yáb˘Õµè»m˝.9_Ÿˇg≤ˇ¸~Ìrkï-‚”ÿm¯Q{-Ùÿ›—,v”Ø8IL5L±ﬁŒH≤HTG÷˝”8äıÅ˘h¨˜Y‘§Å`ÁXô∂B:	ûL÷èÇ,◊ÎÛÒm0[–∂D∂/ïmKv»oo¯CL]~óÇ)≈˙øµÓQπ}Ÿ›:ræºÔOì‰®$ÿ”tCùÒ∑ñ	b=>¢zh√äŒSÇ\3“ÈŒÑ:d9¶WVèc]îe`tå@îÃ2‰)&Aª@ÑPüeï#aˆ¯VﬁûiGP~£|t‚ê<ª˜Û¯ªë)Ÿ∂Ùyh„ìP¿háøLŒéÂøÜ‰Ã Ô|Aˆù“'üç0ÆSJ„¢m¿IﬁöÆAV˘»GÛ«üˇY|˝÷ı]}a∫Ú1ÿX◊ôKELNO∏ÿ1Y $H6⁄≥í çØò‚û∏,~πˆ9º≠O“¨SFÔ_xWûŸÛ§<æÂã≤I‚Ç<Uöê;V‹£…y~Ôt‰8•÷˜é}y%8ÇØ¯n¸‹#c√_‹s`OSüØÈŸ(∞ıo%óÈ‘˙"FŒs{˛$I;CgÉÔõæñÑÕ7„w∑ıO~2˙lÎ«|”ñØ&ñﬁóñ-]¶#Ñká-ƒ6eÜ«˜ÀﬂΩÒ9ùnLŒ≥o˛±Ï;Ûz≤®s]‚∫ekmêVåÏ-_∫õ«Ë;a∏ñºêwE”ﬂçøÙ Î˚Üvéåç4¯i?0¨ÔΩ£(è‰‡dﬁÜ	§±èFã8◊Å:Xªj≠‹|√ˆ~2zÏca’%◊†PJ°ﬁ7^ø˚Ëâ—®Ã√0ﬁ…CÁﬁQäiÚ„ìSUÏDùDﬂ√&6	ÒﬁDÇ.˘K§Æ ‚ûË˜árŸ‹∑n˛e}ÚÈc:x™ÖO8ûa±LÏhºÿ*èÔpÓ	∆}”-õo¡ﬂô‰^†Ì˙PØ∫1Ä.9˜¯ ˛ïª∂m˙^y‹ZÆG.i‰˚óYˇ*¡?›k1íÜ¥m”VY[¥YüñØ∫5»Çx9~aa,Â=ˆ˛ÿù?zØA˛W@¡Ÿ4#€h‚∂LFnﬂ~õ¨^∂jW$ô˚Óâ≈Åu#\µ	b(<&ÂI‡ÙÃÙ£oÓﬂ˝¸Ëa}¬5Ü9«·B>∏fΩl›¥%Œw‰_‡»π3z™1ª^Â™NêÖÕì@vM¶wéû≈Å⁄~ö∆ãÌLAßQW.'›]›-´e`≈j|‚óˇ!‰fkéŸ4¸ˇ"AÃKÒ3qRx/&è,¯Vn/û¯1I∞Cé~ÄïÈ•{£«Ò·Ã<Ãg`>W@˛ÚO…‚Ó.    IENDÆB`Ç                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                âPNG
-
-   IHDR         ‡w=¯   sRGB ÆŒÈ   DeXIfMM *    ái            †       †       †           ‚5u≠  IDATHc`ÍÄüåç”X_ºª¿¯ˇ¿∆ˇ&åRıˇü1˛g<ÛüëqÉÑêÓÜ≥gg˝∆eNdî-˛˛Ô∂∂6QˆÛqa∞03dêêõÛ‚≈kÜßŒ3l⁄≤á·Ë—3wòKü‹=æó%(‚L2äÊ]∂é°ˇèü8˜ü ©©ÈÈE1§0(,˝ˇáèüôó©ÈÈ≈f&\, ◊êb8Ãê∞O@AãÄ"TF¡‚z∞º~˝ˆxTˆˇ˛âsˇˇ˙ıfV§d»,;§-C√£s04nﬁ≤Áø¥Ç9€;áˇ?qÚ<Üdê ≥`¿#îA© 5√ÖÓ‹}¿ë…PZ—∆ ∏82d»,ò‹P:%EB d·Úïõ\"÷o‹â°d$œ@§‡Ä2,ùcË¬"ÊÕ;Ü‹ÇzÜŒÓÈ(≤3`íÅ…upŒD¡ëˇêÇ$å§ >íˇüÅr(:`d¿ûŸEDÑ&Ohd®,ÀB—ÚÚÂ ˇˇ3ò ‹PŸ ˛Ñ ###CDò/√Å=+˝›1îÉÃ ôìÄ[ *∏@e>†¢¨¿∞f≈tÜûŒj~>¨JAfÄÃ¬êƒï—ûøxı?26ÔˇÑIf4êç4-*`^¢ia≤Ñ⁄≈5ˆ4.jT88- ˘ÜU&»ú° ã™ú±‰Y+    IENDÆB`Ç                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              
+  // Show incoming call notification
+  void showIncomingCallNotification(CallModel call) {
+    debugPrint('Showing incoming call notification for: ${call.callerName}');
+    _activeCallId = call.id;
+    
+    // Start playing ringtone
+    _playRingtone();
+    
+    // Show local notification
+    _showIncomingCallLocalNotification(call);
+  }
+
+  // Show incoming call screen
+  void showIncomingCallScreen(CallModel call) {
+    debugPrint('Attempting to show incoming call screen');
+    
+    if (navigatorKey.currentState != null) {
+      navigatorKey.currentState!.push(
+        MaterialPageRoute(
+          builder: (context) => IncomingCallScreen(
+            call: call,
+            onAccept: () => _acceptCall(call),
+            onDecline: () => _declineCall(call),
+          ),
+          fullscreenDialog: true,
+          settings: const RouteSettings(name: '/incoming_call'),
+        ),
+      );
+    } else {
+      debugPrint('Navigator key is null, cannot show incoming call screen');
+    }
+  }
+
+  // Show incoming call local notification
+  void _showIncomingCallLocalNotification(CallModel call) {
+    const AndroidNotificationDetails androidPlatformChannelSpecifics =
+        AndroidNotificationDetails(
+      'call_channel',
+      'Incoming Calls',
+      channelDescription: 'Notifications for incoming calls',
+      importance: Importance.max,
+      priority: Priority.high,
+      fullScreenIntent: true,
+      category: AndroidNotificationCategory.call,
+      ongoing: true,
+      autoCancel: false,
+    );
+
+    const NotificationDetails platformChannelSpecifics =
+        NotificationDetails(android: androidPlatformChannelSpecifics);
+
+    _flutterLocalNotificationsPlugin.show(
+      call.hashCode,
+      'Incoming ${call.type == CallType.video ? 'Video' : 'Audio'} Call',
+      'From ${call.callerName}',
+      platformChannelSpecifics,
+      payload: call.id,
+    );
+  }
+
+  // Accept call
+  Future<void> _acceptCall(CallModel call) async {
+    debugPrint('Accepting call: ${call.id}');
+    stopRingtone();
+    
+    // Update call status in Firestore
+    try {
+      await _firestore.collection('calls').doc(call.id).update({
+        'status': 'accepted',
+        'acceptedAt': FieldValue.serverTimestamp(),
+      });
+      
+      // Cancel notification
+      await _flutterLocalNotificationsPlugin.cancel(call.hashCode);
+      
+    } catch (e) {
+      debugPrint('Error accepting call: $e');
+    }
+  }
+
+  // Decline call
+  Future<void> _declineCall(CallModel call) async {
+    debugPrint('Declining call: ${call.id}');
+    stopRingtone();
+    
+    // Update call status in Firestore
+    try {
+      await _firestore.collection('calls').doc(call.id).update({
+        'status': 'declined',
+        'declinedAt': FieldValue.serverTimestamp(),
+      });
+      
+      // Cancel notification
+      await _flutterLocalNotificationsPlugin.cancel(call.hashCode);
+      
+      // Pop incoming call screen
+      if (navigatorKey.currentState != null) {
+        navigatorKey.currentState!.pop();
+      }
+      
+    } catch (e) {
+      debugPrint('Error declining call: $e');
+    }
+  }
+
+  // Cleanup
+  void dispose() {
+    _audioPlayer.dispose();
+  }
+}
+
+// Background message handler
+@pragma('vm:entry-point')
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp();
+  debugPrint('Handling a background message: ${message.messageId}');
+  
+  if (message.data['type'] == 'call') {
+    // Handle background call notification
+    debugPrint('Background call notification received');
+    // The actual call handling will be done when the app comes to foreground
+  }
+}
