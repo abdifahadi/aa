@@ -1,1 +1,245 @@
-_combined_status":{"aad":1,"ad":1},"legacy":{"profile":{"name":{"migrated":true}}},"local":{"password_hash_data_list":[]},"optimization_guide":{"model_execution":{"last_usage_by_feature":{}},"model_store_metadata":{},"on_device":{"last_version":"137.0.3296.93","model_crash_count":0,"performance_class":2,"performance_class_version":"136.0.3240.92"}},"os_crypt":{"audit_enabled":true,"encrypted_key":"RFBBUEkBAAAA0Iyd3wEV0RGMegDAT8KX6wEAAADt4h7/2VcwTqD0MZt0f9iZEAAAAB4AAABNAGkAYwByAG8AcwBvAGYAdAAgAEUAZABnAGUAAAAQZgAAAAEAACAAAAD8942wYFbhyWC1Cq2XUEkN6cfbO7tXWKjVO1JNeEK+GQAAAAAOgAAAAAIAACAAAAC6Xrw+m1ludIpIOUnp4DhZNYaahRc82EwpSWDhB/xxQzAAAABIN7nqo+cbUIx50FlQZH3GqZTdhiPoLrSwM8EBNXhfoJPq1JSNE/u8q2QWLXFxB3RAAAAARrK5O7Dbcvc8xNZumvOx/jp3aI4I3zUC9DI+0cn9nJPUCE4KIBbPr40Sw8BN3Zc8YQJgp1hEb1gSGbypWXKbcQ=="},"performance_intervention":{"last_daily_sample":"13396036632227386"},"policy":{"last_statistics_update":"13396072128563394"},"profile":{"info_cache":{"Default":{"active_time":1751619180.212005,"avatar_icon":"chrome://theme/IDR_PROFILE_AVATAR_20","background_apps":false,"edge_account_cid":"","edge_account_environment":0,"edge_account_environment_string":"","edge_account_first_name":"","edge_account_last_name":"","edge_account_oid":"","edge_account_sovereignty":0,"edge_account_tenant_id":"","edge_account_type":0,"edge_muid":"031942D3D7BD64DD39F25710D6386557","edge_profile_can_be_deleted":true,"edge_test_on_premises":false,"edge_wam_aad_for_app_account_type":0,"enterprise_label":"","force_signin_profile_locked":false,"gaia_given_name":"","gaia_id":"","gaia_name":"","hosted_domain":"","is_consented_primary_account":false,"is_ephemeral":false,"is_glic_eligible":false,"is_using_default_avatar":true,"is_using_default_name":true,"managed_user_id":"","metrics_bucket_index":1,"name":"Your Microsoft Edge","signin.with_credential_provider":false,"user_name":""}},"last_active_profiles":["Default"],"metrics":{"next_bucket_index":2},"profile_counts_reported":"13396072193446730","profiles_order":["Default"]},"profile_network_context_service":{"http_cache_finch_experiment_groups":"None None None None"},"profiles":{"edge":{"guided_switch_pref":[],"multiple_profiles_with_same_account":false},"edge_sso_info":{"msa_first_profile_key":"Default","msa_sso_algo_state":1},"signin_last_seen_version":"137.0.3296.93","signin_last_updated_time":1751560512.220061},"sentinel_creation_time":"0","session_id_ge
+const functions = require('firebase-functions');
+const admin = require('firebase-admin');
+const { RtcTokenBuilder, RtcRole } = require('agora-token');
+
+admin.initializeApp();
+
+// Agora App ID and Certificate
+const appID = 'b7487b8a48da4f89a4285c92e454a96f';
+// IMPORTANT: Replace with your actual App Certificate from Agora Console
+const appCertificate = '3305146df1a942e5ae0c164506e16007';
+
+/**
+ * Callable function to generate Agora RTC token
+ * Required parameters:
+ * - channelName: string - Name of the channel to join
+ * - uid: string - User ID (can be stringified number)
+ * - role: string - Role ("publisher" or "subscriber")
+ * - expirationTimeInSeconds: number - Token expiration time in seconds (default: 3600)
+ */
+exports.generateAgoraToken = functions.https.onCall(async (data, context) => {
+  try {
+    // Ensure user is authenticated
+    if (!context.auth) {
+      throw new functions.https.HttpsError(
+        'unauthenticated',
+        'The function must be called while authenticated.'
+      );
+    }
+
+    // Validate required parameters
+    const { channelName, uid, role = 'publisher', expirationTimeInSeconds = 3600 } = data;
+    
+    if (!channelName) {
+      throw new functions.https.HttpsError(
+        'invalid-argument',
+        'Channel name is required.'
+      );
+    }
+
+    if (!uid) {
+      throw new functions.https.HttpsError(
+        'invalid-argument',
+        'User ID is required.'
+      );
+    }
+
+    // Convert string uid to number if needed for Agora
+    const uidNumber = parseInt(uid, 10) || 0;
+
+    // Determine the role
+    const rtcRole = role === 'publisher' ? RtcRole.PUBLISHER : RtcRole.SUBSCRIBER;
+
+    // Calculate privilege expire time
+    const currentTimestamp = Math.floor(Date.now() / 1000);
+    const privilegeExpireTime = currentTimestamp + expirationTimeInSeconds;
+
+    // Build the token
+    const token = RtcTokenBuilder.buildTokenWithUid(
+      appID,
+      appCertificate,
+      channelName,
+      uidNumber,
+      rtcRole,
+      privilegeExpireTime
+    );
+
+    console.log(`Token generated for channel: ${channelName}, uid: ${uid}, role: ${role}`);
+
+    // Log token generation (but don't log the actual token for security)
+    functions.logger.info(
+      `Generated Agora token for user ${context.auth.uid}, channel: ${channelName}`,
+      { uid: uid, channelName: channelName, role: role }
+    );
+
+    // Return the token
+    return { token };
+  } catch (error) {
+    console.error('Error generating Agora token:', error);
+    throw new functions.https.HttpsError(
+      'internal',
+      `Failed to generate token: ${error.message}`
+    );
+  }
+});
+
+/**
+ * Cloud Function triggered when a new call is created in Firestore
+ * Sends a notification to the receiver's device(s)
+ */
+exports.sendCallNotification = functions.firestore
+  .document('calls/{callId}')
+  .onCreate(async (snapshot, context) => {
+    try {
+      const callData = snapshot.data();
+      const { callerId, callerName, callerPhotoUrl, receiverId, type, channelId, token } = callData;
+      
+      // Skip if essential data is missing
+      if (!callerId || !receiverId || !channelId) {
+        console.log('Missing essential call data');
+        return null;
+      }
+      
+      // Get the receiver's FCM tokens
+      const receiverDoc = await admin.firestore()
+        .collection('users')
+        .doc(receiverId)
+        .get();
+      
+      if (!receiverDoc.exists) {
+        console.log('Receiver not found:', receiverId);
+        return null;
+      }
+      
+      const receiverData = receiverDoc.data();
+      const fcmTokens = receiverData.fcmTokens || [];
+      
+      if (fcmTokens.length === 0) {
+        console.log('Receiver has no FCM tokens:', receiverId);
+        return null;
+      }
+      
+      // Create notification payload
+      const payload = {
+        notification: {
+          title: `Incoming ${type === 'video' ? 'Video' : 'Voice'} Call`,
+          body: `${callerName || 'Someone'} is calling you`,
+          clickAction: 'FLUTTER_NOTIFICATION_CLICK',
+          sound: 'default', // Use default sound for notification
+        },
+        data: {
+          type: 'call',
+          callId: context.params.callId,
+          callerId: callerId,
+          callerName: callerName || 'Unknown',
+          callerPhotoUrl: callerPhotoUrl || '',
+          callType: type || 'audio',
+          channelId: channelId,
+          token: token || '',
+          timestamp: new Date().getTime().toString(),
+          click_action: 'FLUTTER_NOTIFICATION_CLICK',
+        },
+        android: {
+          priority: 'high',
+          notification: {
+            channelId: 'abdi_wave_calls',
+            icon: 'notification_icon',
+            priority: 'high',
+            sound: 'default',
+            // Use full screen intent for calls
+            visibility: 'public',
+          },
+        },
+        apns: {
+          payload: {
+            aps: {
+              contentAvailable: true,
+              sound: 'default',
+              // Use critical alerts for calls
+              category: 'call',
+            },
+          },
+        },
+      };
+      
+      console.log(`Sending call notification to user: ${receiverId}`);
+      
+      // Send notification to all tokens
+      const result = await admin.messaging().sendMulticast({
+        tokens: fcmTokens,
+        notification: payload.notification,
+        data: payload.data,
+        android: payload.android,
+        apns: payload.apns,
+      });
+      
+      console.log(`Successfully sent ${result.successCount} call notifications, failed: ${result.failureCount}`);
+      
+      return null;
+    } catch (error) {
+      console.error('Error sending call notification:', error);
+      return null;
+    }
+  });
+
+// Update call status when a call is updated
+exports.handleCallStatusUpdate = functions.firestore
+  .document('calls/{callId}')
+  .onUpdate(async (change, context) => {
+    try {
+      const beforeData = change.before.data();
+      const afterData = change.after.data();
+      
+      // If status hasn't changed, do nothing
+      if (beforeData.status === afterData.status) {
+        return null;
+      }
+      
+      const { callerId, receiverId, status } = afterData;
+      
+      // If call was missed, rejected, or ended, send notification to caller
+      if (['missed', 'rejected', 'ended'].includes(status)) {
+        // Get caller's FCM tokens
+        const callerDoc = await admin.firestore()
+          .collection('users')
+          .doc(callerId)
+          .get();
+        
+        if (!callerDoc.exists) {
+          console.log('Caller not found:', callerId);
+          return null;
+        }
+        
+        const callerData = callerDoc.data();
+        const fcmTokens = callerData.fcmTokens || [];
+        
+        if (fcmTokens.length === 0) {
+          console.log('Caller has no FCM tokens:', callerId);
+          return null;
+        }
+        
+        // Create notification payload for call status update
+        const payload = {
+          data: {
+            type: 'call_update',
+            callId: context.params.callId,
+            status: status,
+            timestamp: new Date().getTime().toString(),
+          },
+        };
+        
+        // Send silent notification to caller
+        await admin.messaging().sendMulticast({
+          tokens: fcmTokens,
+          data: payload.data,
+        });
+        
+        console.log(`Sent call status update to caller: ${callerId}, status: ${status}`);
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('Error handling call status update:', error);
+      return null;
+    }
+  });

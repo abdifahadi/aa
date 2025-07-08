@@ -1,10 +1,12 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/foundation.dart';
+import 'dart:typed_data';
+import 'dart:io';
 import '../models/user_model.dart';
 import '../models/chat_model.dart';
 import '../models/message_model.dart';
-import 'package:flutter/foundation.dart';
 
 class FirebaseService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -406,7 +408,7 @@ class FirebaseService {
   }
 
   // Helper method to get file bytes (implement based on platform)
-  Future<List<int>> _getFileBytes(String filePath) async {
+  Future<Uint8List> _getFileBytes(String filePath) async {
     // This is a placeholder - implement based on your platform requirements
     throw UnimplementedError('File bytes reading not implemented');
   }
@@ -478,11 +480,71 @@ class FirebaseService {
     try {
       final doc = await _firestore.collection('users').doc(userId).get();
       if (doc.exists) {
-        return UserModel.fromMap(doc.data()!);
+        return UserModel.fromFirestore(doc);
       }
       return null;
     } catch (e) {
       debugPrint('Error getting user profile: $e');
+      return null;
+    }
+  }
+
+  // Get typing status stream
+  Stream<Map<String, bool>> getTypingStatusStream(String chatId) {
+    return _firestore.collection('chats').doc(chatId).snapshots().map((snapshot) {
+      final data = snapshot.data();
+      if (data != null && data['typingUsers'] != null) {
+        return Map<String, bool>.from(data['typingUsers']);
+      }
+      return <String, bool>{};
+    });
+  }
+
+  // Get user status stream
+  Stream<UserStatus> getUserStatusStream(String uid) {
+    return _firestore.collection('users').doc(uid).snapshots().map((snapshot) {
+      final data = snapshot.data();
+      if (data != null && data['status'] != null) {
+        final statusStr = data['status'] as String;
+        try {
+          return UserStatus.values.firstWhere(
+            (e) => e.toString().split('.').last == statusStr,
+            orElse: () => UserStatus.offline,
+          );
+        } catch (e) {
+          return UserStatus.offline;
+        }
+      }
+      return UserStatus.offline;
+    });
+  }
+
+  // Refresh current user
+  Future<void> refreshCurrentUser() async {
+    try {
+      await _auth.currentUser?.reload();
+      debugPrint('✅ Current user refreshed');
+    } catch (e) {
+      debugPrint('❌ Error refreshing current user: $e');
+      rethrow;
+    }
+  }
+
+  // Upload file and get URL (placeholder implementation)
+  Future<String?> uploadFileAndGetUrl(File file, String fileName, MessageType messageType) async {
+    try {
+      // This is a placeholder implementation
+      // In a real app, you would upload to Firebase Storage or another service
+      debugPrint('📤 Uploading file: $fileName');
+      
+      // Simulate upload delay
+      await Future.delayed(const Duration(seconds: 2));
+      
+      // Return a placeholder URL
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      return 'https://placeholder.com/uploads/$timestamp/$fileName';
+    } catch (e) {
+      debugPrint('❌ Error uploading file: $e');
       return null;
     }
   }
