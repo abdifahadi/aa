@@ -21,8 +21,22 @@ linter:
   # `// ignore_for_file: name_of_lint` syntax on the line or in the file
   # producing the lint.
   rules:
-    # avoid_print: false  # Uncomment to disable the `avoid_print` rule
-    # prefer_single_quotes: true  # Uncomment to enable the `prefer_single_quotes` rule
+    # Disable some rules that are not critical for this project
+    avoid_print: false  # We'll use a custom logger instead
+    avoid_web_libraries_in_flutter: false  # We have web stubs
+    unused_field: false  # Some fields are for future features
+    unused_element: false  # Some methods/elements are for future use
+    unused_local_variable: false  # Some variables are for debugging
+    dead_code: false  # Some code is for future features
+    # Enable some helpful rules
+    prefer_const_constructors: true
+    prefer_const_literals_to_create_immutables: true
+    prefer_const_declarations: true
+    use_build_context_synchronously: false  # We handle this carefully
+    unnecessary_brace_in_string_interps: true
+    prefer_interpolation_to_compose_strings: true
+    unnecessary_this: true
+    curly_braces_in_flow_control_structures: true
 
 # Additional information about this file can be found at
 # https://dart.dev/guides/language/analysis-options

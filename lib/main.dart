@@ -206,15 +206,15 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
               primarySwatch: Colors.deepPurple,
               visualDensity: VisualDensity.adaptivePlatformDensity,
               brightness: Brightness.dark,
-              colorScheme: ColorScheme.fromSwatch(
-                primarySwatch: Colors.deepPurple,
-                brightness: Brightness.dark,
-              ),
+                          colorScheme: ColorScheme.fromSwatch(
+              primarySwatch: Colors.deepPurple,
+              brightness: Brightness.dark,
+            ),
             ),
             themeMode: themeProvider.themeMode,
             home: CallHandler(
-              child: AppLifecycleManager(
-                  child: DeveloperMenuLauncher(child: ChatApp())),
+                              child: AppLifecycleManager(
+                    child: DeveloperMenuLauncher(child: const ChatApp())),
             ),
             routes: {
               '/agora_call_verification': (context) =>

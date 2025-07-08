@@ -17,7 +17,7 @@ class CloudinaryService {
       final timestamp = DateTime.now().millisecondsSinceEpoch.toString();
       
       // Create signature
-      final publicId = 'image_${timestamp}';
+      final publicId = 'image_$timestamp';
       final paramsToSign = folder != null 
           ? 'folder=$folder&public_id=$publicId&timestamp=$timestamp'
           : 'public_id=$publicId&timestamp=$timestamp';
@@ -68,7 +68,7 @@ class CloudinaryService {
       final timestamp = DateTime.now().millisecondsSinceEpoch.toString();
       
       // Create signature
-      final publicId = 'video_${timestamp}';
+      final publicId = 'video_$timestamp';
       final paramsToSign = folder != null 
           ? 'folder=$folder&public_id=$publicId&timestamp=$timestamp'
           : 'public_id=$publicId&timestamp=$timestamp';
@@ -122,7 +122,7 @@ class CloudinaryService {
       final timestamp = DateTime.now().millisecondsSinceEpoch.toString();
       
       // Create signature
-      final publicId = '${detectedResourceType}_${timestamp}';
+      final publicId = '${detectedResourceType}_$timestamp';
       final paramsToSign = folder != null 
           ? 'folder=$folder&public_id=$publicId&timestamp=$timestamp'
           : 'public_id=$publicId&timestamp=$timestamp';
