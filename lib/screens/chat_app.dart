@@ -1,23 +1,16 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'dart:async';
-import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../models/user_model.dart';
-import '../models/message_model.dart';
 import '../models/chat_model.dart';
+import '../models/message_model.dart';
 import '../services/firebase_service.dart';
-import '../services/notification_service.dart';
-import '../services/status_service.dart';
-import '../services/cloudinary_service.dart';
-import '../services/connectivity_service.dart';
 import '../services/local_database.dart';
-import '../utils/constants.dart';
-import '../components/message_input.dart';
-import 'call_handler.dart';
+import '../services/connectivity_service.dart';
+import '../services/cloudinary_service.dart';
 import 'chat/chat_list_screen.dart';
-import 'incoming_call_screen.dart';
+
+enum AppScreen { signIn, signUp, profile, main, settings, chat, call, video, splash }
 
 class ChatApp extends StatefulWidget {
   const ChatApp({Key? key}) : super(key: key);
@@ -34,8 +27,6 @@ class _ChatAppState extends State<ChatApp> with WidgetsBindingObserver {
 
   // Services
   final FirebaseService _firebaseService = FirebaseService();
-  final NotificationService _notificationService = NotificationService();
-  final StatusService _statusService = StatusService();
   final CloudinaryService _cloudinaryService = CloudinaryService();
   final ConnectivityService _connectivityService = ConnectivityService();
   final LocalDatabase _localDb = LocalDatabase();
@@ -87,7 +78,6 @@ class _ChatAppState extends State<ChatApp> with WidgetsBindingObserver {
     // Initialize services
     _initializeLocalData();
     _initializeCloudinary();
-    _notificationService.initialize();
 
     // Add listener to message controller to update send button state
     _messageController.addListener(() {
@@ -146,8 +136,6 @@ class _ChatAppState extends State<ChatApp> with WidgetsBindingObserver {
     _messageController.dispose();
     _scrollController.dispose();
     _messageFocusNode.dispose();
-    _statusService.dispose();
-    _notificationService.dispose();
     _messagesSubscription?.cancel();
     _userSubscription?.cancel();
     _typingTimer?.cancel();

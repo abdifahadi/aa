@@ -746,5 +746,25 @@ class LocalDatabase {
     return await getCallHistory();
   }
 
+  // Clear user-specific data when logging out
+  Future<void> clearUserData() async {
+    final db = await database;
+    
+    // Clear all tables
+    await db.delete(AppConstants.messagesTable);
+    await db.delete(AppConstants.chatsTable);
+    await db.delete(AppConstants.usersTable);
+    await db.delete(AppConstants.callsTable);
+    
+    // Clear pending messages table if it exists
+    try {
+      await db.delete('pending_messages');
+    } catch (e) {
+      // Table might not exist, ignore error
+    }
+    
+    // Optimize database after clearing
+    await optimizeDatabase();
+  }
 
 }
