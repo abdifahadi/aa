@@ -409,8 +409,20 @@ class FirebaseService {
 
   // Helper method to get file bytes (implement based on platform)
   Future<Uint8List> _getFileBytes(String filePath) async {
-    // This is a placeholder - implement based on your platform requirements
-    throw UnimplementedError('File bytes reading not implemented');
+    final file = File(filePath);
+    return await file.readAsBytes();
+  }
+
+  // Initialize Firestore (placeholder for chat_app.dart)
+  Future<void> initializeFirestore() async {
+    try {
+      // Ensure Firestore is initialized
+      await _firestore.enableNetwork();
+      print('✅ Firestore initialized successfully');
+    } catch (e) {
+      print('❌ Error initializing Firestore: $e');
+      rethrow;
+    }
   }
 
   // Delete chat
