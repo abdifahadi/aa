@@ -413,18 +413,6 @@ class FirebaseService {
     return await file.readAsBytes();
   }
 
-  // Initialize Firestore (placeholder for chat_app.dart)
-  Future<void> initializeFirestore() async {
-    try {
-      // Ensure Firestore is initialized
-      await _firestore.enableNetwork();
-      print('✅ Firestore initialized successfully');
-    } catch (e) {
-      print('❌ Error initializing Firestore: $e');
-      rethrow;
-    }
-  }
-
   // Delete chat
   Future<void> deleteChat(String chatId) async {
     try {
