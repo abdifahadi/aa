@@ -1,0 +1,77 @@
+name: abdi_wave
+description: "A new Flutter project."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.2
+  
+  # Firebase dependencies
+  firebase_core: ^2.15.1
+  firebase_auth: ^4.7.3
+  cloud_firestore: ^4.8.5
+  firebase_storage: ^11.2.6
+  firebase_messaging: ^14.6.7
+  firebase_app_check: ^0.1.5+2
+  cloud_functions: ^4.4.2
+  
+  # Google Sign-In
+  google_sign_in: ^6.2.1
+  
+  # File handling
+  image_picker: ^1.0.4
+  file_picker: ^6.1.1
+  path_provider: ^2.1.1
+  path: ^1.8.3
+  uuid: ^4.0.0
+  http: ^1.1.0
+  mime: ^1.0.5
+  
+  # UI and utilities
+  intl: ^0.18.1
+  provider: ^6.0.5
+  cached_network_image: ^3.2.3
+  permission_handler: ^11.0.0
+  shared_preferences: ^2.2.1
+  wakelock_plus: ^1.1.1
+  connectivity_plus: ^4.0.2
+  
+  # Video calling dependencies
+  agora_rtc_engine: ^6.5.2
+  
+  # Additional dependencies
+  flutter_image_compress: ^2.0.4
+  audioplayers: ^5.0.0
+  sqflite: ^2.3.0
+  cloudinary_public: ^0.21.0
+  video_player: ^2.8.0
+  chewie: ^1.7.0
+  crypto: ^3.0.3
+  flutter_local_notifications: ^15.1.0
+  device_info_plus: ^9.1.0
+  visibility_detector: ^0.4.0+2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^2.0.0
+  build_runner: ^2.4.9
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
+    - assets/sounds/
+  # fonts:
+  #   - family: Roboto
+  #     fonts:
+  #       - asset: assets/fonts/Roboto-Regular.ttf
+  #       - asset: assets/fonts/Roboto-Bold.ttf
+  #         weight: 700
+  #       - asset: assets/fonts/Roboto-Light.ttf
+  #         weight: 300 

@@ -1,0 +1,34 @@
+{
+  "project_info": {
+    "project_number": "123456789",
+    "project_id": "abdiwave-chat-temp",
+    "storage_bucket": "abdiwave-chat-temp.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:123456789:android:abcdef123456789",
+        "android_client_info": {
+          "package_name": "com.abdiwave.chat"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "123456789-abcdefghijklmnop.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAbCdEfGhIjKlMnOpQrStUvWxYz"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
