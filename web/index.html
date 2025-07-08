@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base href="$FLUTTER_BASE_HREF">
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="description" content="A new Flutter project.">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="abdi_wave">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+  <title>Abdi Wave</title>
+  <link rel="manifest" href="manifest.json">
+  <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-storage-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-messaging-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-functions-compat.js"></script>
+  <script src="firebase-config.js"></script>
+</head>
+<body>
+  <div id="loading" style="text-align: center; margin-top: 100px;">
+    <p>Loading...</p>
+  </div>
+  <script>
+    window.addEventListener('load', function(ev) {
+      _flutter.loader.loadEntrypoint({
+        serviceWorker: {
+          serviceWorkerVersion: serviceWorkerVersion,
+        }
+      }).then(function(engineInitializer) {
+        return engineInitializer.initializeEngine();
+      }).then(function(appRunner) {
+        return appRunner.runApp();
+      });
+    });
+  </script>
+</body>
+</html>
