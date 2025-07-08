@@ -41,8 +41,8 @@ dependencies:
   wakelock_plus: ^1.1.1
   connectivity_plus: ^4.0.2
   
-  # Video calling dependencies
-  agora_rtc_engine: ^6.5.2
+  # Video calling dependencies - temporarily disabled for testing
+  # agora_rtc_engine: ^6.5.2
   
   # Additional dependencies
   flutter_image_compress: ^2.0.4
