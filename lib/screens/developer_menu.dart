@@ -251,9 +251,14 @@ class _DeveloperMenuState extends State<DeveloperMenu> {
     setState(() => _isLoading = true);
     
     try {
-      await _callService.testAgoraConnection();
+      // Create test parameters for the connection test
+      final testChannelId = 'test-channel-${DateTime.now().millisecondsSinceEpoch}';
+      final testToken = 'test-token'; // In a real implementation, this would be a valid token
+      final testUid = 123456; // Test numeric UID
+      
+      final success = await _callService.testAgoraConnection(testChannelId, testToken, testUid);
       setState(() {
-        _lastAction = 'Agora connection test passed';
+        _lastAction = success ? 'Agora connection test passed' : 'Agora connection test failed';
       });
     } catch (e) {
       setState(() {

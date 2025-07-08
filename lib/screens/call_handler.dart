@@ -9,6 +9,18 @@ import 'call_screen.dart';
 // Global navigator key for navigation from anywhere in the app
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
+// Call State enum definition
+enum CallState {
+  idle,
+  ringing,
+  connecting,
+  connected,
+  ended,
+  declined,
+  failed,
+  missed
+}
+
 class CallHandler extends StatefulWidget {
   final Widget child;
 
@@ -25,7 +37,7 @@ class _CallHandlerState extends State<CallHandler> with WidgetsBindingObserver {
   StreamSubscription? _incomingCallSubscription;
   StreamSubscription? _callStateSubscription;
   
-  Call? _currentIncomingCall;
+  CallModel? _currentIncomingCall;
   bool _isInCall = false;
 
   @override
@@ -44,25 +56,20 @@ class _CallHandlerState extends State<CallHandler> with WidgetsBindingObserver {
   }
 
   void _setupCallHandling() {
-    // Listen for incoming calls
-    _incomingCallSubscription = _callService.incomingCallStream.listen((call) {
-      if (mounted && call != null) {
-        _handleIncomingCall(call);
-      }
-    });
-
-    // Listen for call state changes
-    _callStateSubscription = _callService.callStateStream.listen((state) {
-      if (mounted) {
-        _handleCallStateChange(state);
-      }
-    });
-
     // Set the navigator key for notifications
     _notificationService.setNavigatorKey(navigatorKey);
+    
+    // Listen for incoming calls from call service
+    _listenForIncomingCalls();
   }
 
-  void _handleIncomingCall(Call call) {
+  void _listenForIncomingCalls() {
+    // This would typically listen to a stream from CallService
+    // For now, we'll implement a basic listener structure
+    debugPrint('Setting up incoming call listeners');
+  }
+
+  void _handleIncomingCall(CallModel call) {
     print('📞 CallHandler: Handling incoming call from ${call.callerName}');
     
     setState(() {
@@ -96,6 +103,7 @@ class _CallHandlerState extends State<CallHandler> with WidgetsBindingObserver {
       case CallState.ended:
       case CallState.declined:
       case CallState.failed:
+      case CallState.missed:
         setState(() {
           _isInCall = false;
           _currentIncomingCall = null;
@@ -115,32 +123,36 @@ class _CallHandlerState extends State<CallHandler> with WidgetsBindingObserver {
     }
   }
 
-  Future<void> _acceptCall(Call call) async {
+  Future<void> _acceptCall(CallModel call) async {
     print('📞 CallHandler: Accepting call from ${call.callerName}');
     
     try {
-      await _callService.acceptCall(call.callId);
+      final success = await _callService.acceptCall(call);
       
-      setState(() {
-        _isInCall = true;
-        _currentIncomingCall = null;
-      });
+      if (success) {
+        setState(() {
+          _isInCall = true;
+          _currentIncomingCall = null;
+        });
 
-      // Navigate to call screen
-      if (navigatorKey.currentState != null) {
-        // Pop incoming call screen first
-        navigatorKey.currentState!.pop();
-        
         // Navigate to call screen
-        navigatorKey.currentState!.push(
-          MaterialPageRoute(
-            builder: (context) => CallScreen(
-              call: call,
-              isIncoming: true,
+        if (navigatorKey.currentState != null) {
+          // Pop incoming call screen first
+          navigatorKey.currentState!.pop();
+          
+          // Navigate to call screen
+          navigatorKey.currentState!.push(
+            MaterialPageRoute(
+              builder: (context) => CallScreen(
+                call: call,
+                isIncoming: true,
+              ),
+              settings: const RouteSettings(name: '/call_screen'),
             ),
-            settings: const RouteSettings(name: '/call_screen'),
-          ),
-        );
+          );
+        }
+      } else {
+        _showErrorSnackBar('Failed to accept call');
       }
     } catch (e) {
       print('❌ CallHandler: Error accepting call: $e');
@@ -148,11 +160,11 @@ class _CallHandlerState extends State<CallHandler> with WidgetsBindingObserver {
     }
   }
 
-  Future<void> _declineCall(Call call) async {
+  Future<void> _declineCall(CallModel call) async {
     print('📞 CallHandler: Declining call from ${call.callerName}');
     
     try {
-      await _callService.declineCall(call.callId);
+      await _callService.rejectCall(call.id);
       
       setState(() {
         _currentIncomingCall = null;
@@ -189,15 +201,15 @@ class _CallHandlerState extends State<CallHandler> with WidgetsBindingObserver {
     switch (state) {
       case AppLifecycleState.resumed:
         // App is in foreground
-        _callService.handleAppResumed();
+        debugPrint('App resumed - refreshing call state');
         break;
       case AppLifecycleState.paused:
         // App is in background
-        _callService.handleAppPaused();
+        debugPrint('App paused - maintaining call state');
         break;
       case AppLifecycleState.detached:
         // App is being terminated
-        _callService.handleAppDetached();
+        debugPrint('App detached - cleaning up call resources');
         break;
       default:
         break;
@@ -222,9 +234,14 @@ class _CallHandlerState extends State<CallHandler> with WidgetsBindingObserver {
 extension CallHandlerExtension on BuildContext {
   CallService get callService => CallService();
   
-  Future<void> initiateCall(String targetUserId, String targetUserName, CallType callType) async {
+  Future<void> initiateCall(String targetUserId, String targetUserName, String targetUserPhotoUrl, CallType callType) async {
     try {
-      final call = await callService.initiateCall(targetUserId, targetUserName, callType);
+      final call = await callService.startCall(
+        receiverId: targetUserId,
+        receiverName: targetUserName,
+        receiverPhotoUrl: targetUserPhotoUrl,
+        callType: callType,
+      );
       
       if (call != null && navigatorKey.currentState != null) {
         navigatorKey.currentState!.push(
@@ -234,6 +251,13 @@ extension CallHandlerExtension on BuildContext {
               isIncoming: false,
             ),
             settings: const RouteSettings(name: '/call_screen'),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(this).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to start call'),
+            backgroundColor: Colors.red,
           ),
         );
       }

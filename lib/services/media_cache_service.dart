@@ -1,304 +1,369 @@
 import 'dart:io';
 import 'dart:typed_data';
+import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
 import 'package:crypto/crypto.dart';
 import 'dart:convert';
+import '../utils/constants.dart';
 
 class MediaCacheService {
-  static const String _cacheDir = 'media_cache';
-  static const int _maxCacheSize = 100 * 1024 * 1024; // 100MB
-  static const Duration _cacheExpiry = Duration(days: 7);
+  static final MediaCacheService _instance = MediaCacheService._internal();
+  factory MediaCacheService() => _instance;
+  MediaCacheService._internal();
 
-  static Directory? _cacheDirectory;
+  Directory? _cacheDirectory;
+  bool _isInitialized = false;
 
-  // Initialize cache directory
-  static Future<void> initialize() async {
+  // Initialize the cache service
+  Future<void> initialize() async {
+    if (_isInitialized) return;
+
     try {
-      final appDocDir = await getApplicationDocumentsDirectory();
-      _cacheDirectory = Directory('${appDocDir.path}/$_cacheDir');
+      _cacheDirectory = await getTemporaryDirectory();
+      final mediaCacheDir = Directory('${_cacheDirectory!.path}/media_cache');
       
-      if (!await _cacheDirectory!.exists()) {
-        await _cacheDirectory!.create(recursive: true);
+      if (!await mediaCacheDir.exists()) {
+        await mediaCacheDir.create(recursive: true);
+        debugPrint('📁 Created media cache directory: ${mediaCacheDir.path}');
       }
       
-      // Clean up expired files
-      await _cleanupExpiredFiles();
+      _cacheDirectory = mediaCacheDir;
+      _isInitialized = true;
+      
+      // Clean up old cache files on initialization
+      await _cleanupOldCache();
+      
+      debugPrint('✅ MediaCacheService initialized successfully');
     } catch (e) {
-      debugPrint('Error initializing media cache: $e');
+      debugPrint('❌ Error initializing MediaCacheService: $e');
     }
   }
 
-  // Get cached file path for a URL
-  static String _getCacheFileName(String url) {
+  // Get cache directory
+  Future<Directory> get cacheDirectory async {
+    if (!_isInitialized) await initialize();
+    return _cacheDirectory!;
+  }
+
+  // Generate cache key from URL
+  String _generateCacheKey(String url) {
     final bytes = utf8.encode(url);
     final digest = sha256.convert(bytes);
-    final extension = _getFileExtension(url);
-    return '${digest.toString()}$extension';
+    return digest.toString();
   }
 
-  // Get file extension from URL
-  static String _getFileExtension(String url) {
-    final uri = Uri.parse(url);
-    final path = uri.path.toLowerCase();
-    
-    if (path.endsWith('.jpg') || path.endsWith('.jpeg')) return '.jpg';
-    if (path.endsWith('.png')) return '.png';
-    if (path.endsWith('.gif')) return '.gif';
-    if (path.endsWith('.webp')) return '.webp';
-    if (path.endsWith('.mp4')) return '.mp4';
-    if (path.endsWith('.mov')) return '.mov';
-    if (path.endsWith('.avi')) return '.avi';
-    
-    return '.cache'; // Default extension
+  // Get cached file path
+  Future<String> _getCacheFilePath(String url, String extension) async {
+    final dir = await cacheDirectory;
+    final key = _generateCacheKey(url);
+    return '${dir.path}/$key.$extension';
   }
 
-  // Cache a file from URL
-  static Future<File?> cacheFile(String url) async {
-    if (_cacheDirectory == null) {
-      await initialize();
-    }
-
+  // Cache image
+  Future<File?> cacheImage(String url, Uint8List imageBytes) async {
     try {
-      final fileName = _getCacheFileName(url);
-      final cachedFile = File('${_cacheDirectory!.path}/$fileName');
+      final extension = _getFileExtension(url) ?? 'jpg';
+      final filePath = await _getCacheFilePath(url, extension);
+      final file = File(filePath);
+      
+      await file.writeAsBytes(imageBytes);
+      debugPrint('💾 Cached image: ${file.path}');
+      
+      return file;
+    } catch (e) {
+      debugPrint('❌ Error caching image: $e');
+      return null;
+    }
+  }
 
-      // Check if file already exists and is not expired
-      if (await cachedFile.exists()) {
-        final stat = await cachedFile.stat();
+  // Cache video
+  Future<File?> cacheVideo(String url, Uint8List videoBytes) async {
+    try {
+      final extension = _getFileExtension(url) ?? 'mp4';
+      final filePath = await _getCacheFilePath(url, extension);
+      final file = File(filePath);
+      
+      await file.writeAsBytes(videoBytes);
+      debugPrint('💾 Cached video: ${file.path}');
+      
+      return file;
+    } catch (e) {
+      debugPrint('❌ Error caching video: $e');
+      return null;
+    }
+  }
+
+  // Cache audio
+  Future<File?> cacheAudio(String url, Uint8List audioBytes) async {
+    try {
+      final extension = _getFileExtension(url) ?? 'mp3';
+      final filePath = await _getCacheFilePath(url, extension);
+      final file = File(filePath);
+      
+      await file.writeAsBytes(audioBytes);
+      debugPrint('💾 Cached audio: ${file.path}');
+      
+      return file;
+    } catch (e) {
+      debugPrint('❌ Error caching audio: $e');
+      return null;
+    }
+  }
+
+  // Get cached image
+  Future<File?> getCachedImage(String url) async {
+    try {
+      final extension = _getFileExtension(url) ?? 'jpg';
+      final filePath = await _getCacheFilePath(url, extension);
+      final file = File(filePath);
+      
+      if (await file.exists()) {
+        // Check if file is not too old
+        final stat = await file.stat();
         final age = DateTime.now().difference(stat.modified);
         
-        if (age < _cacheExpiry) {
-          // Update access time
-          await _updateAccessTime(cachedFile);
-          return cachedFile;
+        if (age.inDays <= AppConstants.imageCacheMaxAge) {
+          debugPrint('📷 Found cached image: ${file.path}');
+          return file;
         } else {
-          // File expired, delete it
-          await cachedFile.delete();
-        }
-      }
-
-      // Download and cache the file
-      final response = await http.get(Uri.parse(url));
-      if (response.statusCode == 200) {
-        await cachedFile.writeAsBytes(response.bodyBytes);
-        await _updateAccessTime(cachedFile);
-        
-        // Check cache size and cleanup if needed
-        await _checkCacheSize();
-        
-        return cachedFile;
-      }
-    } catch (e) {
-      debugPrint('Error caching file from $url: $e');
-    }
-    
-    return null;
-  }
-
-  // Get cached file if exists
-  static Future<File?> getCachedFile(String url) async {
-    if (_cacheDirectory == null) {
-      await initialize();
-    }
-
-    try {
-      final fileName = _getCacheFileName(url);
-      final cachedFile = File('${_cacheDirectory!.path}/$fileName');
-
-      if (await cachedFile.exists()) {
-        final stat = await cachedFile.stat();
-        final age = DateTime.now().difference(stat.modified);
-        
-        if (age < _cacheExpiry) {
-          await _updateAccessTime(cachedFile);
-          return cachedFile;
-        } else {
-          // File expired, delete it
-          await cachedFile.delete();
-        }
-      }
-    } catch (e) {
-      debugPrint('Error getting cached file for $url: $e');
-    }
-    
-    return null;
-  }
-
-  // Check if URL is cached
-  static Future<bool> isCached(String url) async {
-    final cachedFile = await getCachedFile(url);
-    return cachedFile != null;
-  }
-
-  // Get cached file or download if not cached
-  static Future<File?> getOrCacheFile(String url) async {
-    File? cachedFile = await getCachedFile(url);
-    if (cachedFile != null) {
-      return cachedFile;
-    }
-    
-    return await cacheFile(url);
-  }
-
-  // Update access time for cache management
-  static Future<void> _updateAccessTime(File file) async {
-    try {
-      // Create a metadata file to track access time
-      final metadataFile = File('${file.path}.meta');
-      await metadataFile.writeAsString(DateTime.now().toIso8601String());
-    } catch (e) {
-      debugPrint('Error updating access time: $e');
-    }
-  }
-
-  // Clean up expired files
-  static Future<void> _cleanupExpiredFiles() async {
-    if (_cacheDirectory == null) return;
-
-    try {
-      final files = await _cacheDirectory!.list().toList();
-      
-      for (final file in files) {
-        if (file is File && !file.path.endsWith('.meta')) {
-          final stat = await file.stat();
-          final age = DateTime.now().difference(stat.modified);
-          
-          if (age > _cacheExpiry) {
-            await file.delete();
-            // Also delete metadata file if exists
-            final metadataFile = File('${file.path}.meta');
-            if (await metadataFile.exists()) {
-              await metadataFile.delete();
-            }
-          }
-        }
-      }
-    } catch (e) {
-      debugPrint('Error cleaning up expired files: $e');
-    }
-  }
-
-  // Check cache size and cleanup oldest files if needed
-  static Future<void> _checkCacheSize() async {
-    if (_cacheDirectory == null) return;
-
-    try {
-      final files = await _cacheDirectory!.list().toList();
-      int totalSize = 0;
-      
-      List<FileSystemEntity> cacheFiles = [];
-      
-      for (final file in files) {
-        if (file is File && !file.path.endsWith('.meta')) {
-          final stat = await file.stat();
-          totalSize += stat.size;
-          cacheFiles.add(file);
-        }
-      }
-
-      if (totalSize > _maxCacheSize) {
-        // Sort files by last access time (oldest first)
-        cacheFiles.sort((a, b) {
-          final aMetaFile = File('${a.path}.meta');
-          final bMetaFile = File('${b.path}.meta');
-          
-          DateTime aTime = DateTime(1970);
-          DateTime bTime = DateTime(1970);
-          
-          try {
-            if (aMetaFile.existsSync()) {
-              aTime = DateTime.parse(aMetaFile.readAsStringSync());
-            }
-          } catch (e) {
-            // Use file modification time as fallback
-            aTime = (a as File).statSync().modified;
-          }
-          
-          try {
-            if (bMetaFile.existsSync()) {
-              bTime = DateTime.parse(bMetaFile.readAsStringSync());
-            }
-          } catch (e) {
-            // Use file modification time as fallback
-            bTime = (b as File).statSync().modified;
-          }
-          
-          return aTime.compareTo(bTime);
-        });
-
-        // Delete oldest files until under cache limit
-        for (final file in cacheFiles) {
-          if (totalSize <= _maxCacheSize * 0.8) break; // Keep 20% buffer
-          
-          final stat = await (file as File).stat();
-          totalSize -= stat.size;
-          
+          // File is too old, delete it
           await file.delete();
-          
-          // Also delete metadata file
-          final metadataFile = File('${file.path}.meta');
-          if (await metadataFile.exists()) {
-            await metadataFile.delete();
-          }
+          debugPrint('🗑️ Deleted old cached image: ${file.path}');
         }
       }
+      
+      return null;
     } catch (e) {
-      debugPrint('Error checking cache size: $e');
+      debugPrint('❌ Error getting cached image: $e');
+      return null;
     }
   }
 
-  // Clear all cached files
-  static Future<void> clearCache() async {
-    if (_cacheDirectory == null) {
-      await initialize();
-    }
-
+  // Get cached video
+  Future<File?> getCachedVideo(String url) async {
     try {
-      if (await _cacheDirectory!.exists()) {
-        await _cacheDirectory!.delete(recursive: true);
-        await _cacheDirectory!.create(recursive: true);
+      final extension = _getFileExtension(url) ?? 'mp4';
+      final filePath = await _getCacheFilePath(url, extension);
+      final file = File(filePath);
+      
+      if (await file.exists()) {
+        final stat = await file.stat();
+        final age = DateTime.now().difference(stat.modified);
+        
+        if (age.inDays <= AppConstants.videoCacheMaxAge) {
+          debugPrint('🎥 Found cached video: ${file.path}');
+          return file;
+        } else {
+          await file.delete();
+          debugPrint('🗑️ Deleted old cached video: ${file.path}');
+        }
+      }
+      
+      return null;
+    } catch (e) {
+      debugPrint('❌ Error getting cached video: $e');
+      return null;
+    }
+  }
+
+  // Get cached audio
+  Future<File?> getCachedAudio(String url) async {
+    try {
+      final extension = _getFileExtension(url) ?? 'mp3';
+      final filePath = await _getCacheFilePath(url, extension);
+      final file = File(filePath);
+      
+      if (await file.exists()) {
+        final stat = await file.stat();
+        final age = DateTime.now().difference(stat.modified);
+        
+        if (age.inDays <= AppConstants.audioCacheMaxAge) {
+          debugPrint('🎵 Found cached audio: ${file.path}');
+          return file;
+        } else {
+          await file.delete();
+          debugPrint('🗑️ Deleted old cached audio: ${file.path}');
+        }
+      }
+      
+      return null;
+    } catch (e) {
+      debugPrint('❌ Error getting cached audio: $e');
+      return null;
+    }
+  }
+
+  // Clear entire cache
+  static Future<void> clearCache() async {
+    try {
+      final instance = MediaCacheService._instance;
+      if (!instance._isInitialized) await instance.initialize();
+      
+      final dir = await instance.cacheDirectory;
+      if (await dir.exists()) {
+        await dir.delete(recursive: true);
+        await dir.create(recursive: true);
+        debugPrint('🧹 Cleared entire media cache');
       }
     } catch (e) {
-      debugPrint('Error clearing cache: $e');
+      debugPrint('❌ Error clearing cache: $e');
     }
   }
 
-  // Get cache size in bytes
+  // Get cache size
   static Future<int> getCacheSize() async {
-    if (_cacheDirectory == null) {
-      await initialize();
-    }
-
     try {
-      int totalSize = 0;
-      final files = await _cacheDirectory!.list(recursive: true).toList();
+      final instance = MediaCacheService._instance;
+      if (!instance._isInitialized) await instance.initialize();
       
-      for (final file in files) {
-        if (file is File) {
-          final stat = await file.stat();
+      final dir = await instance.cacheDirectory;
+      if (!await dir.exists()) return 0;
+      
+      int totalSize = 0;
+      await for (final entity in dir.list(recursive: true)) {
+        if (entity is File) {
+          final stat = await entity.stat();
           totalSize += stat.size;
         }
       }
       
       return totalSize;
     } catch (e) {
-      debugPrint('Error getting cache size: $e');
+      debugPrint('❌ Error calculating cache size: $e');
       return 0;
     }
   }
 
-  // Get cache size as formatted string
+  // Get formatted cache size
   static Future<String> getCacheSizeFormatted() async {
-    final sizeInBytes = await getCacheSize();
+    final size = await getCacheSize();
+    return _formatBytes(size);
+  }
+
+  // Format bytes to human readable string
+  static String _formatBytes(int bytes) {
+    if (bytes <= 0) return "0 B";
     
-    if (sizeInBytes < 1024) {
-      return '$sizeInBytes B';
-    } else if (sizeInBytes < 1024 * 1024) {
-      return '${(sizeInBytes / 1024).toStringAsFixed(1)} KB';
-    } else {
-      return '${(sizeInBytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    const suffixes = ["B", "KB", "MB", "GB", "TB"];
+    final i = (log(bytes) / log(1024)).floor();
+    final size = bytes / pow(1024, i);
+    
+    return '${size.toStringAsFixed(1)} ${suffixes[i]}';
+  }
+
+  // Cleanup old cache files
+  Future<void> _cleanupOldCache() async {
+    try {
+      final dir = await cacheDirectory;
+      if (!await dir.exists()) return;
+      
+      int deletedCount = 0;
+      await for (final entity in dir.list()) {
+        if (entity is File) {
+          final stat = await entity.stat();
+          final age = DateTime.now().difference(stat.modified);
+          
+          // Delete files older than the maximum cache age for any type
+          final maxAge = [
+            AppConstants.imageCacheMaxAge,
+            AppConstants.videoCacheMaxAge,
+            AppConstants.audioCacheMaxAge,
+          ].reduce((a, b) => a > b ? a : b);
+          
+          if (age.inDays > maxAge) {
+            await entity.delete();
+            deletedCount++;
+          }
+        }
+      }
+      
+      if (deletedCount > 0) {
+        debugPrint('🧹 Cleaned up $deletedCount old cache files');
+      }
+    } catch (e) {
+      debugPrint('❌ Error cleaning up cache: $e');
     }
   }
+
+  // Get file extension from URL
+  String? _getFileExtension(String url) {
+    try {
+      final uri = Uri.parse(url);
+      final path = uri.path;
+      final lastDot = path.lastIndexOf('.');
+      
+      if (lastDot != -1 && lastDot < path.length - 1) {
+        return path.substring(lastDot + 1).toLowerCase();
+      }
+      
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // Check if cache size exceeds limit
+  Future<bool> _shouldCleanupBySize() async {
+    final currentSize = await getCacheSize();
+    return currentSize > AppConstants.maxCacheSize;
+  }
+
+  // Cleanup cache by size (remove oldest files first)
+  Future<void> _cleanupBySize() async {
+    try {
+      final dir = await cacheDirectory;
+      if (!await dir.exists()) return;
+      
+      // Get all files with their modification dates
+      final List<MapEntry<File, DateTime>> files = [];
+      
+      await for (final entity in dir.list()) {
+        if (entity is File) {
+          final stat = await entity.stat();
+          files.add(MapEntry(entity, stat.modified));
+        }
+      }
+      
+      // Sort by modification date (oldest first)
+      files.sort((a, b) => a.value.compareTo(b.value));
+      
+      // Delete files until we're under the size limit
+      int deletedCount = 0;
+      for (final entry in files) {
+        await entry.key.delete();
+        deletedCount++;
+        
+        if (!await _shouldCleanupBySize()) {
+          break;
+        }
+      }
+      
+      debugPrint('🧹 Cleaned up $deletedCount files due to size limit');
+    } catch (e) {
+      debugPrint('❌ Error cleaning up cache by size: $e');
+    }
+  }
+
+  // Periodic cleanup (should be called regularly)
+  Future<void> performMaintenance() async {
+    await _cleanupOldCache();
+    
+    if (await _shouldCleanupBySize()) {
+      await _cleanupBySize();
+    }
+  }
+}
+
+// Helper function for logarithm (since dart doesn't have it built-in)
+double log(num x) => (x as double).log();
+
+// Helper function for power
+double pow(num x, num exponent) => (x as double).pow(exponent);
+
+// Extension methods for double
+extension DoubleExtensions on double {
+  double log() => this <= 0 ? double.negativeInfinity : this.log();
+  double pow(num exponent) => this.pow(exponent);
 }
