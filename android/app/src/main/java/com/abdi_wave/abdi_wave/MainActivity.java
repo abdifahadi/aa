@@ -1,4 +1,4 @@
-package com.abdiwave.chat;
+package com.abdi_wave.abdi_wave;
 
 import io.flutter.embedding.android.FlutterActivity;
 

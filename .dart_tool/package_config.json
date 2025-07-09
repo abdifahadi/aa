@@ -315,9 +315,9 @@
     },
     {
       "name": "ffi",
-      "rootUri": "file:///home/ubuntu/.pub-cache/hosted/pub.dev/ffi-2.1.0",
+      "rootUri": "file:///home/ubuntu/.pub-cache/hosted/pub.dev/ffi-2.1.4",
       "packageUri": "lib/",
-      "languageVersion": "3.0"
+      "languageVersion": "3.7"
     },
     {
       "name": "file",
@@ -1131,9 +1131,9 @@
     },
     {
       "name": "web",
-      "rootUri": "file:///home/ubuntu/.pub-cache/hosted/pub.dev/web-0.3.0",
+      "rootUri": "file:///home/ubuntu/.pub-cache/hosted/pub.dev/web-1.1.1",
       "packageUri": "lib/",
-      "languageVersion": "3.2"
+      "languageVersion": "3.4"
     },
     {
       "name": "web_socket_channel",
@@ -1143,9 +1143,9 @@
     },
     {
       "name": "win32",
-      "rootUri": "file:///home/ubuntu/.pub-cache/hosted/pub.dev/win32-5.2.0",
+      "rootUri": "file:///home/ubuntu/.pub-cache/hosted/pub.dev/win32-5.14.0",
       "packageUri": "lib/",
-      "languageVersion": "3.2"
+      "languageVersion": "3.8"
     },
     {
       "name": "win32_registry",

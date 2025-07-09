@@ -50,6 +50,18 @@
       ]
     },
     {
+      "name": "web",
+      "version": "1.1.1",
+      "dependencies": []
+    },
+    {
+      "name": "win32",
+      "version": "5.14.0",
+      "dependencies": [
+        "ffi"
+      ]
+    },
+    {
       "name": "build_runner",
       "version": "2.4.9",
       "dependencies": [
@@ -507,6 +519,11 @@
       ]
     },
     {
+      "name": "ffi",
+      "version": "2.1.4",
+      "dependencies": []
+    },
+    {
       "name": "yaml",
       "version": "3.1.2",
       "dependencies": [
@@ -954,13 +971,6 @@
       ]
     },
     {
-      "name": "win32",
-      "version": "5.2.0",
-      "dependencies": [
-        "ffi"
-      ]
-    },
-    {
       "name": "flutter_web_plugins",
       "version": "0.0.0",
       "dependencies": [
@@ -979,11 +989,6 @@
         "meta",
         "path"
       ]
-    },
-    {
-      "name": "ffi",
-      "version": "2.1.0",
-      "dependencies": []
     },
     {
       "name": "device_info_plus_platform_interface",
@@ -1403,11 +1408,6 @@
       "dependencies": [
         "flutter"
       ]
-    },
-    {
-      "name": "web",
-      "version": "0.3.0",
-      "dependencies": []
     },
     {
       "name": "http_parser",
