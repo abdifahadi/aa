@@ -1,3 +1,9 @@
+# Flutter SDK and build tools (should not be committed)
+flutter/
+flutter.tar.xz
+android-sdk/
+commandlinetools-linux-11076708_latest.zip
+
 # Miscellaneous
 *.class
 *.log
@@ -31,7 +37,6 @@ migrate_working_dir/
 .pub-cache/
 .pub/
 /build/
-flutter/
 
 # Symbolication related
 app.*.symbols
@@ -44,15 +49,10 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
-# Android related
-android/gradle-*.zip
-android/gradle-home/
-android/commandlinetools-*.zip
-android/.gradle/
-android/build/
-android/gradle/wrapper/gradle-wrapper.jar
+# APK Build Results
+*.apk
+*.aab
 
-# Large temporary files
-*.zip
-*.jar
-gradle-*/
+# Backup files
+pubspec_minimal.yaml
+APK_BUILD_SUCCESS_REPORT.md
